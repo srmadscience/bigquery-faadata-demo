@@ -9,6 +9,11 @@ This is a port of [clickhouse-faadata-demo](https://github.com/srmadscience/clic
 the same data, tables and dashboards, on BigQuery instead of ClickHouse. The ten years of
 data from 2016 take about 5 GB of downloads.
 
+**Status.** Every script, the Java loader and all 82 dashboard queries have been run
+against BigQuery, with one month of flights (June 2025), a year of weather and the aircraft
+registry. Not yet tested: a full ten-year load, `grafana-provision.sh` and the dashboards
+in a running Grafana, and the Google Cloud VM (`gcp/create-vm.sh`, `install-server.sh`).
+
 ![Flight Delays dashboard, February to July 2026](docs/screenshots/flight-delays.jpg)
 
 ## Data
@@ -48,14 +53,16 @@ are never loaded, and owner names only for organisations, not individuals.
 ## Reproducing the database
 
 Needs bash, curl, python3, perl, Java 21 and Maven, the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
-(for `bq`), and a Google Cloud project with BigQuery, where you can create datasets and run
-jobs (the BigQuery User and BigQuery Data Editor roles, or Owner).
+(for `bq`), and a Google Cloud project with billing and the BigQuery API enabled, where you
+can create datasets and run jobs (the BigQuery User and BigQuery Data Editor roles, or Owner).
 
     gcloud auth login                         # for bq
     gcloud auth application-default login     # for the Java loader
     cp bigquery.properties.example bigquery.properties   # set bigquery.project, dataset, location
     scripts/reproduce.sh 2025-01 2025-12
 
+Both logins must be an account with those roles in the project; the application-default
+one is easy to forget, and without it the loader fails with a permission error.
 `bigquery.properties` is git-ignored. The `BIGQUERY_PROJECT`, `BIGQUERY_DATASET`,
 `BIGQUERY_LOCATION` and `BIGQUERY_CREDENTIALS` environment variables override it. Instead of
 your own login, `bigquery.credentials` can name a service-account key file, which both `bq`
@@ -142,12 +149,14 @@ BigQuery location and the comment, so runs can be compared.
 
 ### Costs
 
-Loading is free. Storage of the full dataset (about 10 GB in ClickHouse; BigQuery bills
-uncompressed logical bytes by default, so expect several times that) costs a few dollars a
-month at most. Queries are billed by the bytes they read: with on-demand pricing the first
-TiB a month is free, then about $6.25 per TiB. The dashboards filter on the partitioning
-date and select only the columns they need, so a panel over six months typically reads tens
-to hundreds of MB; every query is billed at least 10 MB per table. The build scripts read
+Loading is free. Storage is billed by size; the full dataset took 10 GB in ClickHouse,
+and BigQuery bills uncompressed logical bytes by default, so expect several times that,
+which is still a few dollars a month at most. Queries are billed by the bytes they read:
+with on-demand pricing the first TiB a month is free, then about $6.25 per TiB. The
+dashboards filter on the partitioning date and read only the columns they need, so a
+panel's cost grows with its time range, not the size of the dataset; every query is billed
+at least 10 MB per table it reads. A dry run (`bq query --dry_run`) shows what a query
+would read. The build scripts read
 the whole of `ontime` (and `weather`) each time they rebuild everything; give them months
 (`scripts/build-flight-weather.sh 202606`) to rebuild just those. The Grafana datasource
 can cap the bytes a query may bill (`MaxBytesBilled`).
@@ -180,10 +189,9 @@ query reads only that aircraft's blocks of each monthly partition in the range; 
 what the `by_tail` projection did in the ClickHouse version, without a second copy of the
 table.
 
-With only June 2025 loaded, 8 threads back to back for 20 seconds from the M2 managed 23
-queries a second, with a p50 of 327 ms and a p99 of 735 ms. BigQuery's latency is mostly
-fixed overhead per query rather than work, so expect it to change little with the length
-of the range. Full-dataset numbers are still to be measured.
+With only June 2025 loaded, so every range was at most a month, 8 threads back to back
+for 20 seconds from the M2 managed 23 queries a second, with a p50 of 327 ms and a p99 of
+735 ms. Full-dataset numbers are still to be measured.
 
 ## Data mirror
 
@@ -205,9 +213,10 @@ After fetching new data, update the mirror with:
 
     scripts/publish-data.sh              # DRY_RUN=1 to see what it would upload
 
-It uses the `gh` CLI, needs write access to `DATA_REPO`, and uploads only files that are new or changed. The weather data
-comes from the Iowa Environmental Mesonet, which asks to be credited; the other sources
-are public domain.
+It uses the `gh` CLI and uploads only files that are new or changed. It publishes to
+`DATA_REPO`, by default the ClickHouse repository, so it needs write access there (or
+`DATA_REPO` set to a repository you own). The weather data comes from the Iowa
+Environmental Mesonet, which asks to be credited; the other sources are public domain.
 
 ## Grafana
 
@@ -306,6 +315,8 @@ e2-standard-4 by default) that runs as it, with only port 3000 (Grafana) open:
 * this repository, with the flights and weather from `LOAD_FROM` to `LOAD_TO` loaded into
   BigQuery
 
+To create it, with Grafana open only to your own address:
+
     ALLOWED_CIDR=$(curl -s https://checkip.amazonaws.com)/32 GRAFANA_PASSWORD=secret gcp/create-vm.sh
 
 Grafana's user is `admin`, with the password in `GRAFANA_PASSWORD` (default `hiredavid`).
@@ -313,8 +324,16 @@ Grafana's user is `admin`, with the password in `GRAFANA_PASSWORD` (default `hir
 repository and runs [`scripts/install-server.sh`](scripts/install-server.sh), which works
 on any fresh Ubuntu 24.04 VM on Compute Engine; follow its progress in
 `/var/log/faa-setup.log` (the script prints the `gcloud compute ssh` command).
-`gcp/create-vm.sh --delete` removes the VM and the firewall rule; the dataset stays until
-you delete it with `bq rm -r -f faa`.
+`gcp/create-vm.sh --delete` removes the VM and the firewall rule; the service account
+and the dataset stay until you delete them (`bq rm -r -f faa`). The script's other
+settings (project, zone, machine type, months to load, dataset) are listed at its top.
+
+## Tests
+
+    mvn test
+
+runs the unit tests of the CSV conversion and the benchmark's random ranges; they need no
+BigQuery access.
 
 ## Large data files
 
