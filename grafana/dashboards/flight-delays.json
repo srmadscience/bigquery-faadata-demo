@@ -20,10 +20,16 @@
         "label": "Airline",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
-        "query": "SELECT DISTINCT Reporting_Airline FROM faa.ontime ORDER BY 1",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT Reporting_Airline FROM faa.ontime ORDER BY 1"
+        },
         "definition": "SELECT DISTINCT Reporting_Airline FROM faa.ontime ORDER BY 1",
         "refresh": 1,
         "multi": true,
@@ -45,10 +51,16 @@
         "label": "Origin airport",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
-        "query": "SELECT DISTINCT Origin FROM faa.ontime ORDER BY 1",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT Origin FROM faa.ontime ORDER BY 1"
+        },
         "definition": "SELECT DISTINCT Origin FROM faa.ontime ORDER BY 1",
         "refresh": 1,
         "multi": true,
@@ -114,8 +126,8 @@
       "title": "Flights",
       "description": "Scheduled flights in range.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -127,13 +139,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT count() AS flights FROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS flights FROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -175,8 +187,8 @@
       "title": "On-time arrivals",
       "description": "Arrived less than 15 minutes late, as a share of flights that completed (DOT definition).",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 4,
@@ -188,13 +200,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * countIf(ArrDel15 = 0) / countIf(Cancelled = 0 AND Diverted = 0) AS on_time\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * SAFE_DIVIDE(COUNTIF(ArrDel15 = 0), COUNTIF(Cancelled = 0 AND Diverted = 0)) AS on_time\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -244,8 +256,8 @@
       "title": "Avg arrival delay",
       "description": "Mean arrival delay of completed flights; early arrivals count as negative.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 8,
@@ -257,13 +269,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT avg(ArrDelay) AS delay FROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT AVG(ArrDelay) AS delay FROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -305,8 +317,8 @@
       "title": "Avg delay if late",
       "description": "Mean arrival delay of flights that arrived 15+ minutes late.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -318,13 +330,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT avgIf(ArrDelay, ArrDel15 = 1) AS delay FROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT AVG(IF(ArrDel15 = 1, ArrDelay, NULL)) AS delay FROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -366,8 +378,8 @@
       "title": "Cancelled",
       "description": "Share of scheduled flights cancelled.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 16,
@@ -379,13 +391,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * avg(Cancelled) AS cancelled FROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * AVG(Cancelled) AS cancelled FROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -435,8 +447,8 @@
       "title": "Diverted",
       "description": "Share of scheduled flights diverted.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 20,
@@ -448,13 +460,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * avg(Diverted) AS diverted FROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * AVG(Diverted) AS diverted FROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -496,8 +508,8 @@
       "title": "Average delay by day",
       "description": "Mean delay in minutes per day (local date of departure). Negative = early.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -509,13 +521,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toDateTime(FlightDate) AS time,\n       avg(DepDelay) AS `Departure delay`,\n       avg(ArrDelay) AS `Arrival delay`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
+          "rawQuery": true,
+          "rawSql": "SELECT TIMESTAMP(FlightDate) AS time,\n       AVG(DepDelay) AS `Departure delay`,\n       AVG(ArrDelay) AS `Arrival delay`\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -546,8 +558,8 @@
       "title": "Late and cancelled flights by day",
       "description": "Share of each day's scheduled flights.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -559,13 +571,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toDateTime(FlightDate) AS time,\n       100 * countIf(DepDel15 = 1) / count() AS `Departed 15+ min late`,\n       100 * countIf(ArrDel15 = 1) / count() AS `Arrived 15+ min late`,\n       100 * avg(Cancelled) AS `Cancelled`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
+          "rawQuery": true,
+          "rawSql": "SELECT TIMESTAMP(FlightDate) AS time,\n       100 * COUNTIF(DepDel15 = 1) / COUNT(*) AS `Departed 15+ min late`,\n       100 * COUNTIF(ArrDel15 = 1) / COUNT(*) AS `Arrived 15+ min late`,\n       100 * AVG(Cancelled) AS `Cancelled`\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -612,8 +624,8 @@
       "title": "Delay minutes by cause, per month",
       "description": "Total delay minutes attributed to each cause (reported for flights arriving 15+ min late). Note most weather delay is booked under NAS, not 'Extreme weather'.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -625,13 +637,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toDateTime(toStartOfMonth(FlightDate)) AS time,\n       sum(CarrierDelay) AS Carrier,\n       sum(LateAircraftDelay) AS `Late aircraft`,\n       sum(NASDelay) AS `Air traffic system (NAS)`,\n       sum(WeatherDelay) AS `Extreme weather`,\n       sum(SecurityDelay) AS Security\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
+          "rawQuery": true,
+          "rawSql": "SELECT TIMESTAMP(DATE_TRUNC(FlightDate, MONTH)) AS time,\n       SUM(CarrierDelay) AS Carrier,\n       SUM(LateAircraftDelay) AS `Late aircraft`,\n       SUM(NASDelay) AS `Air_traffic_system_NAS`,\n       SUM(WeatherDelay) AS `Extreme weather`,\n       SUM(SecurityDelay) AS Security\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -661,15 +673,25 @@
           "mode": "multi"
         }
       },
-      "id": 9
+      "id": 9,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Air_traffic_system_NAS": "Air traffic system (NAS)"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "table",
       "title": "Airlines",
       "description": "Reporting carriers by on-time arrival rate. Codes are BTS carrier codes (AA American, DL Delta, UA United, WN Southwest, B6 JetBlue, AS Alaska, NK Spirit, F9 Frontier, ...).",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -681,13 +703,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT Reporting_Airline AS Airline,\n       count() AS Flights,\n       round(100 * countIf(ArrDel15 = 0) / countIf(Cancelled = 0 AND Diverted = 0), 1) AS `On time %`,\n       round(avg(ArrDelay), 1) AS `Avg arr delay`,\n       round(100 * avg(Cancelled), 2) AS `Cancelled %`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY Airline ORDER BY `On time %` DESC"
+          "rawQuery": true,
+          "rawSql": "SELECT Reporting_Airline AS Airline,\n       COUNT(*) AS Flights,\n       ROUND(100 * SAFE_DIVIDE(COUNTIF(ArrDel15 = 0), COUNTIF(Cancelled = 0 AND Diverted = 0)), 1) AS `On time %`,\n       ROUND(AVG(ArrDelay), 1) AS `Avg arr delay`,\n       ROUND(100 * AVG(Cancelled), 2) AS `Cancelled %`\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY Airline ORDER BY `On time %` DESC"
         }
       ],
       "fieldConfig": {
@@ -735,8 +757,8 @@
       "title": "Departure delay by scheduled hour",
       "description": "By scheduled local departure hour. Delays build up through the day as late aircraft knock on.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -748,13 +770,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT lpad(toString(intDiv(CRSDepTime, 100) % 24), 2, '0') AS hour,\n       round(avg(DepDelay), 1) AS `Avg departure delay`,\n       round(100 * countIf(DepDel15 = 1) / count(), 1) AS `% departing 15+ min late`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY hour ORDER BY hour"
+          "rawQuery": true,
+          "rawSql": "SELECT LPAD(CAST(MOD(DIV(CRSDepTime, 100), 24) AS STRING), 2, '0') AS hour,\n       ROUND(AVG(DepDelay), 1) AS `Avg departure delay`,\n       ROUND(100 * COUNTIF(DepDel15 = 1) / COUNT(*), 1) AS `% departing 15+ min late`\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY hour ORDER BY hour"
         }
       ],
       "fieldConfig": {
@@ -813,8 +835,8 @@
       "title": "Departure delay by day of week",
       "description": "",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -826,13 +848,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT DayOfWeek AS dow,\n       ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][DayOfWeek] AS day,\n       round(avg(DepDelay), 1) AS `Avg departure delay`,\n       round(100 * countIf(DepDel15 = 1) / count(), 1) AS `% departing 15+ min late`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY dow, day ORDER BY dow"
+          "rawQuery": true,
+          "rawSql": "SELECT DayOfWeek AS dow,\n       ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][ORDINAL(DayOfWeek)] AS day,\n       ROUND(AVG(DepDelay), 1) AS `Avg departure delay`,\n       ROUND(100 * COUNTIF(DepDel15 = 1) / COUNT(*), 1) AS `% departing 15+ min late`\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY dow, day ORDER BY dow"
         }
       ],
       "fieldConfig": {
@@ -907,8 +929,8 @@
       "title": "Average departure delay by airport",
       "description": "Colour = mean departure delay (minutes). Airports with 100+ departures; hover for details.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -920,13 +942,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT a.airport AS airport, any(a.airport_name) AS name, any(a.lat) AS lat, any(a.lon) AS lon,\n       toFloat64(count()) AS flights, round(avg(o.DepDelay), 1) AS avg_dep_delay\nFROM faa.ontime AS o\nINNER JOIN faa.airport_station AS a ON a.airport = o.Origin\nWHERE $__dateFilter(o.FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY airport HAVING flights >= 100"
+          "rawQuery": true,
+          "rawSql": "SELECT a.airport AS airport, ANY_VALUE(a.airport_name) AS name, ANY_VALUE(a.lat) AS lat, ANY_VALUE(a.lon) AS lon,\n       CAST(COUNT(*) AS FLOAT64) AS flights, ROUND(AVG(o.DepDelay), 1) AS avg_dep_delay\nFROM faa.ontime AS o\nINNER JOIN faa.airport_station AS a ON a.airport = o.Origin\nWHERE o.FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND o.Reporting_Airline IN (${airline:singlequote}) AND o.Origin IN (${origin:singlequote})\nGROUP BY airport HAVING flights >= 100"
         }
       ],
       "fieldConfig": {
@@ -994,8 +1016,8 @@
       "title": "Most delayed airports",
       "description": "Airports with 1,000+ departures in range, worst first.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -1007,13 +1029,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT Origin AS Airport, any(OriginCityName) AS City, count() AS Departures,\n       round(100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0), 1) AS `Late departures %`,\n       round(avg(DepDelay), 1) AS `Avg dep delay`,\n       round(100 * avg(Cancelled), 2) AS `Cancelled %`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY Airport HAVING Departures >= 1000\nORDER BY `Late departures %` DESC LIMIT 50"
+          "rawQuery": true,
+          "rawSql": "SELECT Origin AS Airport, ANY_VALUE(OriginCityName) AS City, COUNT(*) AS Departures,\n       ROUND(100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)), 1) AS `Late departures %`,\n       ROUND(AVG(DepDelay), 1) AS `Avg dep delay`,\n       ROUND(100 * AVG(Cancelled), 2) AS `Cancelled %`\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY Airport HAVING Departures >= 1000\nORDER BY `Late departures %` DESC LIMIT 50"
         }
       ],
       "fieldConfig": {
@@ -1061,8 +1083,8 @@
       "title": "Top 10 least reliable city pairs",
       "description": "Airport pairs, both directions together, with the most carrier cancellations (code A) per 1,000 flights, among pairs with at least the minimum number of completed flights; ties go to the pair with more carrier delay per flight. The Origin airport filter applies to where each flight left from.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1118,24 +1140,35 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table",
-          "rawSql": "SELECT concat(least(Origin, Dest), '–', greatest(Origin, Dest)) AS `City pair`,\n       round(1000 * countIf(Cancelled = 1 AND CancellationCode = 'A') / count(), 1) AS `Carrier cxl / 1k flights`,\n       round(sum(CarrierDelay) / countIf(Cancelled = 0), 1) AS delay,\n       -- as text, so they appear in the tooltip without being drawn as bars\n       -- city names from one flight of the pair, ordered like the airport codes\n       any((Origin, OriginCityName, DestCityName)) AS one_flight,\n       if(startsWith(`City pair`, one_flight.1), concat(one_flight.2, ' – ', one_flight.3), concat(one_flight.3, ' – ', one_flight.2)) AS Cities,\n       toString(count()) AS Flights, toString(delay) AS `Carrier delay min/flt`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY `City pair` HAVING countIf(Cancelled = 0) >= ${min_flights}\nORDER BY `Carrier cxl / 1k flights` DESC, delay DESC\nLIMIT 10"
+          "rawQuery": true,
+          "rawSql": "SELECT `City pair`, `Carrier_cxl_1k_flights`, delay,\n       -- as text, so they appear in the tooltip without being drawn as bars\n       -- city names from one flight of the pair, ordered like the airport codes\n       IF(STARTS_WITH(`City pair`, one.Origin), CONCAT(one.o, ' – ', one.d), CONCAT(one.d, ' – ', one.o)) AS Cities,\n       CAST(flights AS STRING) AS Flights, CAST(delay AS STRING) AS `Carrier_delay_min_flt`\nFROM (\n    SELECT CONCAT(LEAST(Origin, Dest), '–', GREATEST(Origin, Dest)) AS `City pair`,\n           ROUND(1000 * COUNTIF(Cancelled = 1 AND CancellationCode = 'A') / COUNT(*), 1) AS `Carrier_cxl_1k_flights`,\n           ROUND(SAFE_DIVIDE(SUM(CarrierDelay), COUNTIF(Cancelled = 0)), 1) AS delay,\n           ANY_VALUE(STRUCT(Origin, OriginCityName AS o, DestCityName AS d)) AS one,\n           COUNT(*) AS flights\n    FROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\n    GROUP BY `City pair` HAVING COUNTIF(Cancelled = 0) >= ${min_flights}\n)\nORDER BY `Carrier_cxl_1k_flights` DESC, delay DESC\nLIMIT 10"
         }
       ],
-      "id": 15
+      "id": 15,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Carrier_cxl_1k_flights": "Carrier cxl / 1k flights",
+              "Carrier_delay_min_flt": "Carrier delay min/flt"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "barchart",
       "title": "Top 10 least reliable flight numbers",
       "description": "Flight numbers with the most carrier cancellations (code A) per 1,000 flights, among those with at least the minimum number of completed flights; ties go to the one with more carrier delay per flight. Airlines reuse a number on several routes over time: the label shows the route it flew most, and the tooltip how many it flew.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -1191,16 +1224,27 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table",
-          "rawSql": "-- Rank first, then find the main route of just the ten flights ranked.\nWITH top AS (\n    SELECT Reporting_Airline AS airline, Flight_Number_Reporting_Airline AS number, count() AS flights,\n           round(1000 * countIf(Cancelled = 1 AND CancellationCode = 'A') / flights, 1) AS cxl,\n           round(sum(CarrierDelay) / countIf(Cancelled = 0), 1) AS carrier_delay\n    FROM faa.ontime WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\n    GROUP BY airline, number HAVING countIf(Cancelled = 0) >= ${min_flights}\n    ORDER BY cxl DESC, carrier_delay DESC\n    LIMIT 10\n)\nSELECT concat(airline, ' ', toString(number), ' (', topK(1)(concat(Origin, '–', Dest))[1], ')') AS Flight,\n       any(cxl) AS `Carrier cxl / 1k flights`, any(carrier_delay) AS delay,\n       -- as text, so they appear in the tooltip without being drawn as bars\n       toString(uniqExact(Origin, Dest)) AS Routes,\n       toString(any(flights)) AS Flights, toString(delay) AS `Carrier delay min/flt`\nFROM faa.ontime INNER JOIN top ON Reporting_Airline = airline AND Flight_Number_Reporting_Airline = number\nWHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY airline, number\nORDER BY `Carrier cxl / 1k flights` DESC, delay DESC"
+          "rawQuery": true,
+          "rawSql": "-- Rank first, then find the main route of just the ten flights ranked.\nWITH top AS (\n    SELECT Reporting_Airline AS airline, Flight_Number_Reporting_Airline AS number, COUNT(*) AS n_flights,\n           ROUND(1000 * COUNTIF(Cancelled = 1 AND CancellationCode = 'A') / COUNT(*), 1) AS cxl,\n           ROUND(SAFE_DIVIDE(SUM(CarrierDelay), COUNTIF(Cancelled = 0)), 1) AS carrier_delay\n    FROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\n    GROUP BY airline, number HAVING COUNTIF(Cancelled = 0) >= ${min_flights}\n    ORDER BY cxl DESC, carrier_delay DESC\n    LIMIT 10\n)\nSELECT CONCAT(airline, ' ', CAST(number AS STRING), ' (',\n              APPROX_TOP_COUNT(CONCAT(Origin, '–', Dest), 1)[OFFSET(0)].value, ')') AS Flight,\n       ANY_VALUE(cxl) AS `Carrier_cxl_1k_flights`, ANY_VALUE(carrier_delay) AS delay,\n       -- as text, so they appear in the tooltip without being drawn as bars\n       CAST(COUNT(DISTINCT CONCAT(Origin, Dest)) AS STRING) AS Routes,\n       CAST(ANY_VALUE(n_flights) AS STRING) AS Flights, CAST(ANY_VALUE(carrier_delay) AS STRING) AS `Carrier_delay_min_flt`\nFROM faa.ontime INNER JOIN top ON Reporting_Airline = airline AND Flight_Number_Reporting_Airline = number\nWHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY airline, number\nORDER BY `Carrier_cxl_1k_flights` DESC, delay DESC"
         }
       ],
-      "id": 16
+      "id": 16,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Carrier_cxl_1k_flights": "Carrier cxl / 1k flights",
+              "Carrier_delay_min_flt": "Carrier delay min/flt"
+            }
+          }
+        }
+      ]
     }
   ],
   "schemaVersion": 41,

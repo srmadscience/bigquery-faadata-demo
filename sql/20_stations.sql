@@ -16,18 +16,18 @@
 -- Station ids are FAA identifiers, which match the BTS Origin/Dest codes for
 -- airports in the lower 48; elsewhere IEM uses ICAO codes (PANC, TJSJ), which
 -- faa.airport_station resolves. tzname converts BTS local times to UTC.
+-- Replaced as a whole by load-stations.sh.
 CREATE TABLE IF NOT EXISTS faa.stations
 (
-    station   LowCardinality(String),
-    network   LowCardinality(String),
-    name      String,
-    state     LowCardinality(String),
-    country   LowCardinality(String),
-    lat       Float64,
-    lon       Float64,
-    elevation Nullable(Float32),
-    tzname    LowCardinality(String),
-    archive_begin Nullable(Date32)
+    station   STRING NOT NULL,
+    network   STRING NOT NULL,
+    name      STRING NOT NULL,
+    state     STRING NOT NULL,
+    country   STRING NOT NULL,
+    lat       FLOAT64 NOT NULL,
+    lon       FLOAT64 NOT NULL,
+    elevation FLOAT64,
+    tzname    STRING NOT NULL,
+    archive_begin DATE
 )
-ENGINE = ReplacingMergeTree
-ORDER BY station;
+CLUSTER BY station;

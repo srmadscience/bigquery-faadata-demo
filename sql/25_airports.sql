@@ -15,25 +15,24 @@
 -- OurAirports airport list (public domain), worldwide, one row per airport.
 -- https://ourairports.com/data/
 -- Used to translate BTS airport codes (IATA) into IEM station ids, and for
--- names and coordinates on Grafana maps.
+-- names and coordinates on Grafana maps. Replaced as a whole by load-stations.sh.
 CREATE TABLE IF NOT EXISTS faa.airports
 (
-    id                UInt32,
-    ident             String,
-    type              LowCardinality(String),
-    name              String,
-    latitude_deg      Float64,
-    longitude_deg     Float64,
-    elevation_ft      Nullable(Int32),
-    continent         LowCardinality(String),
-    iso_country       LowCardinality(String),
-    iso_region        LowCardinality(String),
-    municipality      String,
-    scheduled_service LowCardinality(String),
-    icao_code         String,
-    iata_code         String,
-    gps_code          String,
-    local_code        String
+    id                INT64 NOT NULL,
+    ident             STRING NOT NULL,
+    type              STRING NOT NULL,
+    name              STRING NOT NULL,
+    latitude_deg      FLOAT64 NOT NULL,
+    longitude_deg     FLOAT64 NOT NULL,
+    elevation_ft      INT64,
+    continent         STRING NOT NULL,
+    iso_country       STRING NOT NULL,
+    iso_region        STRING NOT NULL,
+    municipality      STRING NOT NULL,
+    scheduled_service STRING NOT NULL,
+    icao_code         STRING NOT NULL,
+    iata_code         STRING NOT NULL,
+    gps_code          STRING NOT NULL,
+    local_code        STRING NOT NULL
 )
-ENGINE = ReplacingMergeTree
-ORDER BY id;
+CLUSTER BY iata_code;

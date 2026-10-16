@@ -12,6 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Run with:  java -jar target/clickhouse-faadata-demo-*-all.jar schema sql/*.sql
--- Files run in name order; add tables as 10_flights.sql, 20_weather.sql, ...
-CREATE DATABASE IF NOT EXISTS faa;
+-- Run with:  scripts/create-database.sh
+-- Files run in name order; add tables as 70_xxx.sql, ... The dataset is created
+-- in bigquery.location (see bigquery.properties.example). Every "faa." below
+-- becomes bigquery.dataset if that is set to something else.
+CREATE SCHEMA IF NOT EXISTS faa;

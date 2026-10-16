@@ -1,0 +1,29 @@
+# Copy to bigquery.properties (git-ignored) and fill in.
+# Environment variables BIGQUERY_PROJECT / _DATASET / _LOCATION / _CREDENTIALS
+# override these.
+
+# Google Cloud project that holds the dataset and pays for queries.
+# Default: gcloud's current project (gcloud config get-value project).
+bigquery.project=
+# Dataset for the tables. The SQL and dashboards are written for "faa"; any
+# other name is substituted when they are run or installed.
+bigquery.dataset=faa
+# Where the dataset is created and its queries run: US, EU or a region.
+bigquery.location=US
+# Service-account key file (JSON), if not using Application Default
+# Credentials (gcloud auth login + gcloud auth application-default login, or
+# the VM's service account on Google Cloud). Never commit it.
+#bigquery.credentials=/path/to/key.json
+
+# Grafana, for scripts/grafana-provision.sh only (environment variables
+# GRAFANA_SSH / GRAFANA_URL override these).
+# SSH login on the Grafana server: key-based, with passwordless sudo; or
+# "local" for a Grafana on this machine (run as a user with sudo).
+#grafana.ssh=user@grafana-host
+# Grafana's web address, for the dashboard links printed at the end.
+# Default: http://<host from grafana.ssh>:3000
+#grafana.url=http://grafana-host:3000
+# How Grafana logs in to BigQuery: "key" (the bigquery.credentials key file,
+# copied to the Grafana server) or "gce" (the service account of the Google
+# Cloud VM Grafana runs on). Default: key if bigquery.credentials is set.
+#grafana.bigquery.auth=gce

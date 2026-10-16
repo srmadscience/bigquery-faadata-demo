@@ -36,10 +36,16 @@
         "label": "Airport",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
-        "query": "SELECT airport FROM faa.airport_station WHERE station IN (SELECT DISTINCT station FROM faa.weather) ORDER BY 1",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT airport FROM faa.airport_station WHERE station IN (SELECT DISTINCT station FROM faa.weather) ORDER BY 1"
+        },
         "definition": "SELECT airport FROM faa.airport_station WHERE station IN (SELECT DISTINCT station FROM faa.weather) ORDER BY 1",
         "refresh": 1,
         "multi": false,
@@ -58,11 +64,17 @@
         "label": "Weather station",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
         "hide": 2,
-        "query": "SELECT station FROM faa.airport_station WHERE airport = '${airport}'",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT station FROM faa.airport_station WHERE airport = '${airport}'"
+        },
         "definition": "SELECT station FROM faa.airport_station WHERE airport = '${airport}'",
         "refresh": 1,
         "multi": false,
@@ -224,31 +236,31 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "-- Each airport's latest report in the time range, as a flight category.\nSELECT a.airport AS airport, a.airport_name AS Name, a.lat AS lat, a.lon AS lon,\n       w.category AS `Flight category`, formatDateTime(w.last, '%Y-%m-%d %H:%iZ') AS `Last report`\nFROM (\n    SELECT station, last,\n           arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                       [r.5, r.6, r.7, r.8], [r.1, r.2, r.3, r.4]) AS layers,\n           if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n           multiIf(r.9 IS NULL AND ceiling IS NULL AND r.1 = '', NULL,\n                   ceiling < 500 OR r.9 < 1, 'LIFR',\n                   ceiling < 1000 OR r.9 < 3, 'IFR',\n                   ceiling <= 3000 OR r.9 <= 5, 'MVFR', 'VFR') AS category\n    FROM (\n        SELECT station, max(valid) AS last,\n               argMax((skyc1, skyc2, skyc3, skyc4, skyl1, skyl2, skyl3, skyl4, vsby), valid) AS r\n        FROM faa.weather WHERE $__timeFilter(valid)\n        GROUP BY station\n    )\n) AS w\nINNER JOIN faa.airport_station AS a ON a.station = w.station",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "-- Each airport's latest report in the time range, as a flight category.\nSELECT a.airport AS airport, a.airport_name AS Name, a.lat AS lat, a.lon AS lon,\n       w.category AS `Flight category`, FORMAT_TIMESTAMP('%Y-%m-%d %H:%MZ', w.valid) AS `Last report`\nFROM (\n    SELECT station, valid, CASE WHEN vsby IS NULL AND ceiling IS NULL AND skyc1 = '' THEN NULL\n            WHEN ceiling < 500 OR vsby < 1 THEN 'LIFR'\n            WHEN ceiling < 1000 OR vsby < 3 THEN 'IFR'\n            WHEN ceiling <= 3000 OR vsby <= 5 THEN 'MVFR'\n            ELSE 'VFR' END AS category\n    FROM (\n        SELECT station, r.*, (SELECT MIN(l) FROM UNNEST([\n                IF(r.skyc1 IN ('BKN', 'OVC', 'VV'), r.skyl1, NULL), IF(r.skyc2 IN ('BKN', 'OVC', 'VV'), r.skyl2, NULL),\n                IF(r.skyc3 IN ('BKN', 'OVC', 'VV'), r.skyl3, NULL), IF(r.skyc4 IN ('BKN', 'OVC', 'VV'), r.skyl4, NULL)]) AS l) AS ceiling\n        FROM (\n            SELECT station, ARRAY_AGG(STRUCT(valid, skyc1, skyc2, skyc3, skyc4, skyl1, skyl2, skyl3, skyl4, vsby)\n                                      ORDER BY valid DESC LIMIT 1)[OFFSET(0)] AS r\n            FROM faa.weather WHERE $__timeFilter(valid)\n            GROUP BY station\n        )\n    )\n) AS w\nINNER JOIN faa.airport_station AS a ON a.station = w.station"
         },
         {
           "refId": "B",
-          "rawSql": "SELECT airport, airport_name AS Name, lat, lon FROM faa.airport_station WHERE airport = '${airport}' LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT airport, airport_name AS Name, lat, lon FROM faa.airport_station WHERE airport = '${airport}' LIMIT 1"
         }
       ],
       "id": 1,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -310,20 +322,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT category AS `Flight category`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN vsby IS NULL AND ceiling IS NULL AND skyc1 = '' THEN NULL\n            WHEN ceiling < 500 OR vsby < 1 THEN 'LIFR'\n            WHEN ceiling < 1000 OR vsby < 3 THEN 'IFR'\n            WHEN ceiling <= 3000 OR vsby <= 5 THEN 'MVFR'\n            ELSE 'VFR' END AS `Flight category`\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 2,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -362,20 +374,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT if(sknt = 0, 'Calm', concat(ifNull(leftPad(toString(toUInt16(drct)), 3, '0'), 'VRB'), '° ',\n       toString(toUInt16(sknt)), ifNull(concat('G', toString(toUInt16(gust))), ''), ' kt')) AS `Wind`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT IF(sknt = 0, 'Calm', CONCAT(IFNULL(LPAD(CAST(CAST(drct AS INT64) AS STRING), 3, '0'), 'VRB'), '° ',\n       CAST(CAST(sknt AS INT64) AS STRING), IFNULL(CONCAT('G', CAST(CAST(gust AS INT64) AS STRING)), ''), ' kt')) AS Wind\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 3,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -415,20 +427,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT vsby AS `Visibility`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT vsby AS Visibility\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 4,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -467,20 +479,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT ifNull(concat(toString(toUInt32(ceiling)), ' ft'), 'None') AS `Ceiling`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT IFNULL(CONCAT(CAST(CAST(ceiling AS INT64) AS STRING), ' ft'), 'None') AS Ceiling\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 5,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -519,21 +531,31 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT concat(toString(round(tmpf)), ' / ', toString(round(dwpf)), ' °F') AS `Temp / dew point`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT CONCAT(CAST(CAST(ROUND(tmpf) AS INT64) AS STRING), ' / ', CAST(CAST(ROUND(dwpf) AS INT64) AS STRING), ' °F') AS `Temp_dew_point`\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 6,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
-      }
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Temp_dew_point": "Temp / dew point"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "stat",
@@ -573,20 +595,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT alti AS `Altimeter`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT alti AS Altimeter\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 7,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -628,20 +650,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT nullIf(arrayStringConcat(arrayFilter(x -> x IS NOT NULL,\n       [multiIf(skyc1 IN ('', 'CLR'), NULL,\n               concat(transform(skyc1, ['FEW', 'SCT', 'BKN', 'OVC', 'VV'],\n                                ['◔ FEW', '◑ SCT', '◕ BKN', '● OVC', '⊗ VV'], skyc1),\n                      ifNull(concat(' ', toString(toUInt32(skyl1)), ' ft'), ''))),\n        multiIf(skyc2 IN ('', 'CLR'), NULL,\n               concat(transform(skyc2, ['FEW', 'SCT', 'BKN', 'OVC', 'VV'],\n                                ['◔ FEW', '◑ SCT', '◕ BKN', '● OVC', '⊗ VV'], skyc2),\n                      ifNull(concat(' ', toString(toUInt32(skyl2)), ' ft'), ''))),\n        multiIf(skyc3 IN ('', 'CLR'), NULL,\n               concat(transform(skyc3, ['FEW', 'SCT', 'BKN', 'OVC', 'VV'],\n                                ['◔ FEW', '◑ SCT', '◕ BKN', '● OVC', '⊗ VV'], skyc3),\n                      ifNull(concat(' ', toString(toUInt32(skyl3)), ' ft'), ''))),\n        multiIf(skyc4 IN ('', 'CLR'), NULL,\n               concat(transform(skyc4, ['FEW', 'SCT', 'BKN', 'OVC', 'VV'],\n                                ['◔ FEW', '◑ SCT', '◕ BKN', '● OVC', '⊗ VV'], skyc4),\n                      ifNull(concat(' ', toString(toUInt32(skyl4)), ' ft'), '')))]), '   '), '') AS `Sky`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT NULLIF(ARRAY_TO_STRING([\n       CASE WHEN skyc1 IN ('', 'CLR') THEN NULL\n            ELSE CONCAT(CASE skyc1 WHEN 'FEW' THEN '◔ FEW' WHEN 'SCT' THEN '◑ SCT' WHEN 'BKN' THEN '◕ BKN'\n                                     WHEN 'OVC' THEN '● OVC' WHEN 'VV' THEN '⊗ VV' ELSE skyc1 END,\n                        IFNULL(CONCAT(' ', CAST(CAST(skyl1 AS INT64) AS STRING), ' ft'), '')) END,\n       CASE WHEN skyc2 IN ('', 'CLR') THEN NULL\n            ELSE CONCAT(CASE skyc2 WHEN 'FEW' THEN '◔ FEW' WHEN 'SCT' THEN '◑ SCT' WHEN 'BKN' THEN '◕ BKN'\n                                     WHEN 'OVC' THEN '● OVC' WHEN 'VV' THEN '⊗ VV' ELSE skyc2 END,\n                        IFNULL(CONCAT(' ', CAST(CAST(skyl2 AS INT64) AS STRING), ' ft'), '')) END,\n       CASE WHEN skyc3 IN ('', 'CLR') THEN NULL\n            ELSE CONCAT(CASE skyc3 WHEN 'FEW' THEN '◔ FEW' WHEN 'SCT' THEN '◑ SCT' WHEN 'BKN' THEN '◕ BKN'\n                                     WHEN 'OVC' THEN '● OVC' WHEN 'VV' THEN '⊗ VV' ELSE skyc3 END,\n                        IFNULL(CONCAT(' ', CAST(CAST(skyl3 AS INT64) AS STRING), ' ft'), '')) END,\n       CASE WHEN skyc4 IN ('', 'CLR') THEN NULL\n            ELSE CONCAT(CASE skyc4 WHEN 'FEW' THEN '◔ FEW' WHEN 'SCT' THEN '◑ SCT' WHEN 'BKN' THEN '◕ BKN'\n                                     WHEN 'OVC' THEN '● OVC' WHEN 'VV' THEN '⊗ VV' ELSE skyc4 END,\n                        IFNULL(CONCAT(' ', CAST(CAST(skyl4 AS INT64) AS STRING), ' ft'), '')) END], '   '), '') AS Sky\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 8,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -683,20 +705,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT metar AS `Latest METAR`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 1",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT metar AS `Latest METAR`\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 1"
         }
       ],
       "id": 9,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -773,20 +795,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT valid AS time, category AS `Flight category`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time, CASE WHEN vsby IS NULL AND ceiling IS NULL AND skyc1 = '' THEN NULL\n            WHEN ceiling < 500 OR vsby < 1 THEN 'LIFR'\n            WHEN ceiling < 1000 OR vsby < 3 THEN 'IFR'\n            WHEN ceiling <= 3000 OR vsby <= 5 THEN 'MVFR'\n            ELSE 'VFR' END AS `Flight category`\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid)) ORDER BY time"
         }
       ],
       "id": 11,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -963,21 +985,50 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time,\n       if(skyc1 = 'FEW', skyl1, NULL) AS `◔ FEW`,\n       if(skyc1 = 'SCT', skyl1, NULL) AS `◑ SCT`,\n       if(skyc1 = 'BKN', skyl1, NULL) AS `◕ BKN`,\n       if(skyc1 = 'OVC', skyl1, NULL) AS `● OVC`,\n       if(skyc1 = 'VV', skyl1, NULL) AS `⊗ VV`,\n       if(skyc2 = 'FEW', skyl2, NULL) AS `◔ FEW (layer 2)`,\n       if(skyc2 = 'SCT', skyl2, NULL) AS `◑ SCT (layer 2)`,\n       if(skyc2 = 'BKN', skyl2, NULL) AS `◕ BKN (layer 2)`,\n       if(skyc2 = 'OVC', skyl2, NULL) AS `● OVC (layer 2)`,\n       if(skyc2 = 'VV', skyl2, NULL) AS `⊗ VV (layer 2)`,\n       if(skyc3 = 'FEW', skyl3, NULL) AS `◔ FEW (layer 3)`,\n       if(skyc3 = 'SCT', skyl3, NULL) AS `◑ SCT (layer 3)`,\n       if(skyc3 = 'BKN', skyl3, NULL) AS `◕ BKN (layer 3)`,\n       if(skyc3 = 'OVC', skyl3, NULL) AS `● OVC (layer 3)`,\n       if(skyc3 = 'VV', skyl3, NULL) AS `⊗ VV (layer 3)`,\n       if(skyc4 = 'FEW', skyl4, NULL) AS `◔ FEW (layer 4)`,\n       if(skyc4 = 'SCT', skyl4, NULL) AS `◑ SCT (layer 4)`,\n       if(skyc4 = 'BKN', skyl4, NULL) AS `◕ BKN (layer 4)`,\n       if(skyc4 = 'OVC', skyl4, NULL) AS `● OVC (layer 4)`,\n       if(skyc4 = 'VV', skyl4, NULL) AS `⊗ VV (layer 4)`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time,\n       IF(skyc1 = 'FEW', skyl1, NULL) AS `FEW`,\n       IF(skyc1 = 'SCT', skyl1, NULL) AS `SCT`,\n       IF(skyc1 = 'BKN', skyl1, NULL) AS `BKN`,\n       IF(skyc1 = 'OVC', skyl1, NULL) AS `OVC`,\n       IF(skyc1 = 'VV', skyl1, NULL) AS `VV`,\n       IF(skyc2 = 'FEW', skyl2, NULL) AS `FEW_layer_2`,\n       IF(skyc2 = 'SCT', skyl2, NULL) AS `SCT_layer_2`,\n       IF(skyc2 = 'BKN', skyl2, NULL) AS `BKN_layer_2`,\n       IF(skyc2 = 'OVC', skyl2, NULL) AS `OVC_layer_2`,\n       IF(skyc2 = 'VV', skyl2, NULL) AS `VV_layer_2`,\n       IF(skyc3 = 'FEW', skyl3, NULL) AS `FEW_layer_3`,\n       IF(skyc3 = 'SCT', skyl3, NULL) AS `SCT_layer_3`,\n       IF(skyc3 = 'BKN', skyl3, NULL) AS `BKN_layer_3`,\n       IF(skyc3 = 'OVC', skyl3, NULL) AS `OVC_layer_3`,\n       IF(skyc3 = 'VV', skyl3, NULL) AS `VV_layer_3`,\n       IF(skyc4 = 'FEW', skyl4, NULL) AS `FEW_layer_4`,\n       IF(skyc4 = 'SCT', skyl4, NULL) AS `SCT_layer_4`,\n       IF(skyc4 = 'BKN', skyl4, NULL) AS `BKN_layer_4`,\n       IF(skyc4 = 'OVC', skyl4, NULL) AS `OVC_layer_4`,\n       IF(skyc4 = 'VV', skyl4, NULL) AS `VV_layer_4`\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 12,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
-      }
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "FEW_layer_4": "◔ FEW (layer 4)",
+              "BKN_layer_3": "◕ BKN (layer 3)",
+              "BKN_layer_4": "◕ BKN (layer 4)",
+              "SCT_layer_2": "◑ SCT (layer 2)",
+              "FEW_layer_2": "◔ FEW (layer 2)",
+              "OVC_layer_3": "● OVC (layer 3)",
+              "OVC_layer_4": "● OVC (layer 4)",
+              "SCT_layer_3": "◑ SCT (layer 3)",
+              "BKN_layer_2": "◕ BKN (layer 2)",
+              "SCT_layer_4": "◑ SCT (layer 4)",
+              "FEW_layer_3": "◔ FEW (layer 3)",
+              "OVC_layer_2": "● OVC (layer 2)",
+              "VV_layer_4": "⊗ VV (layer 4)",
+              "VV_layer_2": "⊗ VV (layer 2)",
+              "VV_layer_3": "⊗ VV (layer 3)",
+              "FEW": "◔ FEW",
+              "SCT": "◑ SCT",
+              "BKN": "◕ BKN",
+              "OVC": "● OVC",
+              "VV": "⊗ VV"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "timeseries",
@@ -1153,21 +1204,50 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time,\n       if(skyc1 = 'FEW', skyl1, NULL) AS `◔ FEW`,\n       if(skyc1 = 'SCT', skyl1, NULL) AS `◑ SCT`,\n       if(skyc1 = 'BKN', skyl1, NULL) AS `◕ BKN`,\n       if(skyc1 = 'OVC', skyl1, NULL) AS `● OVC`,\n       if(skyc1 = 'VV', skyl1, NULL) AS `⊗ VV`,\n       if(skyc2 = 'FEW', skyl2, NULL) AS `◔ FEW (layer 2)`,\n       if(skyc2 = 'SCT', skyl2, NULL) AS `◑ SCT (layer 2)`,\n       if(skyc2 = 'BKN', skyl2, NULL) AS `◕ BKN (layer 2)`,\n       if(skyc2 = 'OVC', skyl2, NULL) AS `● OVC (layer 2)`,\n       if(skyc2 = 'VV', skyl2, NULL) AS `⊗ VV (layer 2)`,\n       if(skyc3 = 'FEW', skyl3, NULL) AS `◔ FEW (layer 3)`,\n       if(skyc3 = 'SCT', skyl3, NULL) AS `◑ SCT (layer 3)`,\n       if(skyc3 = 'BKN', skyl3, NULL) AS `◕ BKN (layer 3)`,\n       if(skyc3 = 'OVC', skyl3, NULL) AS `● OVC (layer 3)`,\n       if(skyc3 = 'VV', skyl3, NULL) AS `⊗ VV (layer 3)`,\n       if(skyc4 = 'FEW', skyl4, NULL) AS `◔ FEW (layer 4)`,\n       if(skyc4 = 'SCT', skyl4, NULL) AS `◑ SCT (layer 4)`,\n       if(skyc4 = 'BKN', skyl4, NULL) AS `◕ BKN (layer 4)`,\n       if(skyc4 = 'OVC', skyl4, NULL) AS `● OVC (layer 4)`,\n       if(skyc4 = 'VV', skyl4, NULL) AS `⊗ VV (layer 4)`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time,\n       IF(skyc1 = 'FEW', skyl1, NULL) AS `FEW`,\n       IF(skyc1 = 'SCT', skyl1, NULL) AS `SCT`,\n       IF(skyc1 = 'BKN', skyl1, NULL) AS `BKN`,\n       IF(skyc1 = 'OVC', skyl1, NULL) AS `OVC`,\n       IF(skyc1 = 'VV', skyl1, NULL) AS `VV`,\n       IF(skyc2 = 'FEW', skyl2, NULL) AS `FEW_layer_2`,\n       IF(skyc2 = 'SCT', skyl2, NULL) AS `SCT_layer_2`,\n       IF(skyc2 = 'BKN', skyl2, NULL) AS `BKN_layer_2`,\n       IF(skyc2 = 'OVC', skyl2, NULL) AS `OVC_layer_2`,\n       IF(skyc2 = 'VV', skyl2, NULL) AS `VV_layer_2`,\n       IF(skyc3 = 'FEW', skyl3, NULL) AS `FEW_layer_3`,\n       IF(skyc3 = 'SCT', skyl3, NULL) AS `SCT_layer_3`,\n       IF(skyc3 = 'BKN', skyl3, NULL) AS `BKN_layer_3`,\n       IF(skyc3 = 'OVC', skyl3, NULL) AS `OVC_layer_3`,\n       IF(skyc3 = 'VV', skyl3, NULL) AS `VV_layer_3`,\n       IF(skyc4 = 'FEW', skyl4, NULL) AS `FEW_layer_4`,\n       IF(skyc4 = 'SCT', skyl4, NULL) AS `SCT_layer_4`,\n       IF(skyc4 = 'BKN', skyl4, NULL) AS `BKN_layer_4`,\n       IF(skyc4 = 'OVC', skyl4, NULL) AS `OVC_layer_4`,\n       IF(skyc4 = 'VV', skyl4, NULL) AS `VV_layer_4`\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 13,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
-      }
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "FEW_layer_4": "◔ FEW (layer 4)",
+              "BKN_layer_3": "◕ BKN (layer 3)",
+              "BKN_layer_4": "◕ BKN (layer 4)",
+              "SCT_layer_2": "◑ SCT (layer 2)",
+              "FEW_layer_2": "◔ FEW (layer 2)",
+              "OVC_layer_3": "● OVC (layer 3)",
+              "OVC_layer_4": "● OVC (layer 4)",
+              "SCT_layer_3": "◑ SCT (layer 3)",
+              "BKN_layer_2": "◕ BKN (layer 2)",
+              "SCT_layer_4": "◑ SCT (layer 4)",
+              "FEW_layer_3": "◔ FEW (layer 3)",
+              "OVC_layer_2": "● OVC (layer 2)",
+              "VV_layer_4": "⊗ VV (layer 4)",
+              "VV_layer_2": "⊗ VV (layer 2)",
+              "VV_layer_3": "⊗ VV (layer 3)",
+              "FEW": "◔ FEW",
+              "SCT": "◑ SCT",
+              "BKN": "◕ BKN",
+              "OVC": "● OVC",
+              "VV": "⊗ VV"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "timeseries",
@@ -1235,20 +1315,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time, vsby AS Visibility\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time, vsby AS Visibility\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 14,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -1334,20 +1414,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time, tmpf AS Temperature, dwpf AS `Dew point`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time, tmpf AS Temperature, dwpf AS `Dew point`\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 15,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -1427,20 +1507,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time, multiIf(match(wxcodes, 'TS'), '⛈ Thunderstorm',\n               match(wxcodes, 'FZ(RA|DZ)'), '🧊 Freezing rain',\n               match(wxcodes, 'SN|SG|PL|GS|GR'), '❄ Snow / ice',\n               match(wxcodes, 'RA|SH'), '🌧 Rain',\n               match(wxcodes, 'DZ'), '🌦 Drizzle',\n               match(wxcodes, 'FG'), '🌫 Fog',\n               match(wxcodes, 'BR|HZ|FU|DU|SA'), '≡ Mist / haze',\n               wxcodes != '', '? Other', NULL) AS Weather, nullIf(wxcodes, '') AS Codes\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time,\n       CASE WHEN REGEXP_CONTAINS(wxcodes, r'TS') THEN '⛈ Thunderstorm'\n            WHEN REGEXP_CONTAINS(wxcodes, r'FZ(RA|DZ)') THEN '🧊 Freezing rain'\n            WHEN REGEXP_CONTAINS(wxcodes, r'SN|SG|PL|GS|GR') THEN '❄ Snow / ice'\n            WHEN REGEXP_CONTAINS(wxcodes, r'RA|SH') THEN '🌧 Rain'\n            WHEN REGEXP_CONTAINS(wxcodes, r'DZ') THEN '🌦 Drizzle'\n            WHEN REGEXP_CONTAINS(wxcodes, r'FG') THEN '🌫 Fog'\n            WHEN REGEXP_CONTAINS(wxcodes, r'BR|HZ|FU|DU|SA') THEN '≡ Mist / haze'\n            WHEN wxcodes != '' THEN '? Other' END AS Weather,\n       NULLIF(wxcodes, '') AS Codes\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 16,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -1481,20 +1561,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time, multiIf(sknt IS NULL, NULL, sknt = 0, '○ Calm', drct IS NULL, '↻ Variable',\n               ['↓ N', '↙ NE', '← E', '↖ SE', '↑ S', '↗ SW', '→ W', '↘ NW'][intDiv(toUInt16(drct + 22.5) % 360, 45) + 1]) AS `Wind from`\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time,\n       CASE WHEN sknt IS NULL THEN NULL WHEN sknt = 0 THEN '○ Calm' WHEN drct IS NULL THEN '↻ Variable'\n            ELSE ['↓ N', '↙ NE', '← E', '↖ SE', '↑ S', '↗ SW', '→ W', '↘ NW'][OFFSET(DIV(MOD(CAST(FLOOR(drct + 22.5) AS INT64), 360), 45))]\n       END AS `Wind from`\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 17,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -1577,20 +1657,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time, sknt AS Wind, gust AS Gusts\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time, sknt AS Wind, gust AS Gusts\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 18,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -1691,20 +1771,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT valid AS time, p01i AS `Precipitation`, alti AS Altimeter\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT valid AS time, p01i AS Precipitation, alti AS Altimeter\nFROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid) ORDER BY time"
         }
       ],
       "id": 19,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       }
     },
     {
@@ -1792,21 +1872,31 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH arrayFilter((l, c) -> c IN ('BKN', 'OVC', 'VV') AND l IS NOT NULL,\n                   [skyl1, skyl2, skyl3, skyl4], [skyc1, skyc2, skyc3, skyc4]) AS layers,\n     if(empty(layers), NULL, arrayMin(layers)) AS ceiling,\n     multiIf(vsby IS NULL AND ceiling IS NULL AND skyc1 = '', NULL,\n             ceiling < 500 OR vsby < 1, 'LIFR',\n             ceiling < 1000 OR vsby < 3, 'IFR',\n             ceiling <= 3000 OR vsby <= 5, 'MVFR', 'VFR') AS category\nSELECT formatDateTime(valid, '%Y-%m-%d %H:%iZ') AS `Time (UTC)`, category AS `Flight category`, metar AS METAR\nFROM faa.weather FINAL WHERE station = '${station}' AND $__timeFilter(valid)\nORDER BY valid DESC LIMIT 2000",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table"
+          "rawQuery": true,
+          "rawSql": "SELECT FORMAT_TIMESTAMP('%Y-%m-%d %H:%MZ', valid) AS `Time_UTC`, CASE WHEN vsby IS NULL AND ceiling IS NULL AND skyc1 = '' THEN NULL\n            WHEN ceiling < 500 OR vsby < 1 THEN 'LIFR'\n            WHEN ceiling < 1000 OR vsby < 3 THEN 'IFR'\n            WHEN ceiling <= 3000 OR vsby <= 5 THEN 'MVFR'\n            ELSE 'VFR' END AS `Flight category`, metar AS METAR\nFROM (SELECT *, (SELECT MIN(l) FROM UNNEST([\n                IF(skyc1 IN ('BKN', 'OVC', 'VV'), skyl1, NULL), IF(skyc2 IN ('BKN', 'OVC', 'VV'), skyl2, NULL),\n                IF(skyc3 IN ('BKN', 'OVC', 'VV'), skyl3, NULL), IF(skyc4 IN ('BKN', 'OVC', 'VV'), skyl4, NULL)]) AS l) AS ceiling\n      FROM faa.weather WHERE station = '${station}' AND $__timeFilter(valid))\nORDER BY valid DESC LIMIT 2000"
         }
       ],
       "id": 20,
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
-      }
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Time_UTC": "Time (UTC)"
+            }
+          }
+        }
+      ]
     }
   ],
   "schemaVersion": 41,

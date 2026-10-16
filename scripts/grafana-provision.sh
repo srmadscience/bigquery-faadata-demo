@@ -15,16 +15,17 @@
 
 # Configures a Grafana server over SSH: a Linux package install (/etc/grafana,
 # /var/lib/grafana, systemd service grafana-server) with the
-# grafana-clickhouse-datasource plugin, reached with key login and passwordless sudo.
+# grafana-bigquery-datasource plugin, reached with key login and passwordless sudo.
 # grafana.ssh=local configures a Grafana on this machine instead, without SSH.
-#   - installs the ClickHouse datasource and dashboard provider from grafana/provisioning/
+#   - installs the BigQuery datasource and dashboard provider from grafana/provisioning/
 #   - copies grafana/dashboards/*.json to the dashboard folder Grafana watches
-#   - gives grafana-server the ClickHouse credentials via a root-only env file
+#   - with a service-account key, gives Grafana its private key in a file only
+#     root and Grafana can read
 #   - restarts Grafana and reports provisioning errors from its log
 # Safe to re-run; re-run after adding or changing dashboards.
 #
-# Settings: grafana.* in clickhouse.properties (see clickhouse.properties.example),
-# or the environment variables below.
+# Settings: bigquery.* and grafana.* in bigquery.properties (see
+# bigquery.properties.example), or the environment variables below.
 #
 #   scripts/grafana-provision.sh
 #   GRAFANA_SSH=me@grafana-host scripts/grafana-provision.sh
@@ -33,19 +34,21 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
 GRAFANA_SSH="${GRAFANA_SSH:-$(prop grafana.ssh)}"
-[[ -n "$GRAFANA_SSH" ]] || { echo "error: set grafana.ssh=user@host in clickhouse.properties, or GRAFANA_SSH" >&2; exit 1; }
+[[ -n "$GRAFANA_SSH" ]] || { echo "error: set grafana.ssh=user@host in bigquery.properties, or GRAFANA_SSH" >&2; exit 1; }
 GRAFANA_URL="${GRAFANA_URL:-$(prop grafana.url)}"
 GRAFANA_HOST=${GRAFANA_SSH#*@}; [[ "$GRAFANA_SSH" != local ]] || GRAFANA_HOST=localhost
 GRAFANA_URL="${GRAFANA_URL:-http://$GRAFANA_HOST:3000}"
 GRAFANA_PORT=$(sed -E 's#^[a-z]+://[^/:]+:?([0-9]*).*#\1#' <<< "$GRAFANA_URL"); GRAFANA_PORT="${GRAFANA_PORT:-3000}"
-# ClickHouse as Grafana reaches it (native protocol), by default the host in clickhouse.url.
-GF_CH_HOST="${GRAFANA_CLICKHOUSE_HOST:-$(prop grafana.clickhouse.host)}"
-GF_CH_HOST="${GF_CH_HOST:-$(sed -E 's#^[a-z]+://([^/:]+).*#\1#' <<< "$CH_URL")}"
-GF_CH_PORT="${GRAFANA_CLICKHOUSE_PORT:-$(prop grafana.clickhouse.port)}"; GF_CH_PORT="${GF_CH_PORT:-9000}"
-if [[ "$GF_CH_HOST" =~ ^(localhost|127\.0\.0\.1|::1)$ && ! "$GRAFANA_HOST" =~ ^(localhost|127\.0\.0\.1|::1)$ ]]; then
-  echo "warn: Grafana will look for ClickHouse at $GF_CH_HOST, i.e. on the Grafana server itself;" >&2
-  echo "      set grafana.clickhouse.host if ClickHouse runs elsewhere" >&2
-fi
+[[ -n "$BQ_PROJECT" ]] || { echo "error: set bigquery.project in bigquery.properties, or BIGQUERY_PROJECT" >&2; exit 1; }
+# How Grafana logs in to BigQuery: with the key file, or as the VM's service account.
+AUTH="${GRAFANA_BIGQUERY_AUTH:-$(prop grafana.bigquery.auth)}"
+[[ -n "$AUTH" ]] || { [[ -n "$BQ_CREDENTIALS" ]] && AUTH=key || AUTH=gce; }
+case "$AUTH" in
+  key) [[ -f "$BQ_CREDENTIALS" ]] || { echo "error: grafana.bigquery.auth=key needs bigquery.credentials, a key file" >&2; exit 1; }
+       CLIENT_EMAIL=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["client_email"])' "$BQ_CREDENTIALS") ;;
+  gce) CLIENT_EMAIL="" ;;
+  *)   echo "error: grafana.bigquery.auth must be key or gce, not $AUTH" >&2; exit 1 ;;
+esac
 
 PROV="$PROJECT_DIR/grafana/provisioning"
 
@@ -56,31 +59,34 @@ else
   remote() { ssh -o BatchMode=yes "$GRAFANA_SSH" "$@"; }
 fi
 
-echo "Installing provisioning files on $GRAFANA_SSH (ClickHouse at $GF_CH_HOST:$GF_CH_PORT)"
-sed -e "s/__CLICKHOUSE_HOST__/$GF_CH_HOST/" -e "s/__CLICKHOUSE_PORT__/$GF_CH_PORT/" "$PROV/datasources/clickhouse.yaml" \
-  | remote "sudo install -o root -g grafana -m 640 /dev/stdin /etc/grafana/provisioning/datasources/faa-clickhouse.yaml"
+echo "Installing provisioning files on $GRAFANA_SSH (BigQuery project $BQ_PROJECT, $AUTH login)"
+if [[ "$AUTH" == key ]]; then
+  # The private key travels over SSH stdin (never on a command line).
+  python3 -I -c 'import json, sys; sys.stdout.write(json.load(open(sys.argv[1]))["private_key"])' "$BQ_CREDENTIALS" \
+    | remote "sudo install -o root -g grafana -m 640 /dev/stdin /etc/grafana/faa-bigquery-key.pem"
+  jwt_only='s/ *# jwt only$//'
+else
+  jwt_only='/# jwt only$/d'
+fi
+sed -e "s/__AUTH__/$([[ $AUTH == key ]] && echo jwt || echo gce)/" -e "s/__PROJECT__/$BQ_PROJECT/" \
+    -e "s/__LOCATION__/$BQ_LOCATION/" -e "s/__CLIENT_EMAIL__/$CLIENT_EMAIL/" -e "$jwt_only" \
+    "$PROV/datasources/bigquery.yaml" \
+  | remote "sudo install -o root -g grafana -m 640 /dev/stdin /etc/grafana/provisioning/datasources/faa-bigquery.yaml"
 remote "sudo install -o root -g grafana -m 640 /dev/stdin /etc/grafana/provisioning/dashboards/faa.yaml" \
   < "$PROV/dashboards/faa.yaml"
 
 remote "sudo install -d -o grafana -g grafana -m 755 /var/lib/grafana/dashboards/faa"
 for f in "$PROJECT_DIR"/grafana/dashboards/*.json; do
   [[ -f "$f" ]] || continue
-  remote "sudo install -o grafana -g grafana -m 644 /dev/stdin '/var/lib/grafana/dashboards/faa/$(basename "$f")'" < "$f"
+  # The queries name the faa dataset; point them at BQ_DATASET.
+  bq_sql "$(cat "$f")" \
+    | remote "sudo install -o grafana -g grafana -m 644 /dev/stdin '/var/lib/grafana/dashboards/faa/$(basename "$f")'"
   echo "  dashboard $(basename "$f")"
 done
 
-# Credentials travel over SSH stdin (never on a command line) into a file only
-# root can read; systemd reads it as root and passes it to grafana-server, and
-# the datasource YAML references ${CLICKHOUSE_USER} / ${CLICKHOUSE_PASSWORD}.
-printf 'CLICKHOUSE_USER=%s\nCLICKHOUSE_PASSWORD=%s\n' "$CH_USER" "$CH_PASSWORD" \
-  | remote "sudo install -o root -g root -m 600 /dev/stdin /etc/grafana/faa-clickhouse.env"
-remote "sudo install -d /etc/systemd/system/grafana-server.service.d && \
-        printf '[Service]\nEnvironmentFile=/etc/grafana/faa-clickhouse.env\n' \
-        | sudo tee /etc/systemd/system/grafana-server.service.d/faa-clickhouse.conf > /dev/null"
-
 echo "Restarting Grafana"
 since=$(remote "date '+%Y-%m-%d %H:%M:%S'")
-remote "sudo systemctl daemon-reload && sudo systemctl restart grafana-server"
+remote "sudo systemctl restart grafana-server"
 for _ in $(seq 30); do
   remote "curl -fs http://localhost:$GRAFANA_PORT/api/health > /dev/null" && break
   sleep 2
@@ -94,7 +100,7 @@ if [[ -n "$errors" ]]; then
   echo "$errors" >&2
   exit 1
 fi
-echo "Grafana provisioned: datasource 'ClickHouse FAA' (uid clickhouse-faa). Dashboards:"
+echo "Grafana provisioned: datasource 'BigQuery FAA' (uid bigquery-faa). Dashboards:"
 for f in "$PROJECT_DIR"/grafana/dashboards/*.json; do
   python3 -I -c 'import json, sys; d = json.load(open(sys.argv[1])); print("  %s: %s/d/%s" % (d["title"], sys.argv[2], d["uid"]))' "$f" "$GRAFANA_URL"
 done

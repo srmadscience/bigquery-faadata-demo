@@ -42,9 +42,11 @@ data/**
 *.parquet
 *.tsv
 
-# Local credentials
-clickhouse.properties
+# Local settings and credentials
+bigquery.properties
 .env
+*-key.json
+*.key.json
 
 # Load timings, appended by scripts/reproduce.sh --time
 !/testresults_load.csv

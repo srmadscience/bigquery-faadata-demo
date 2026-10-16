@@ -1,12 +1,13 @@
-# clickhouse-faadata-demo
-A ClickHouse / Grafana application that uses publicly available FAA flight and weather data.
+# bigquery-faadata-demo
+A Google BigQuery / Grafana application that uses publicly available FAA flight and weather data.
 
-* **ClickHouse**: any server you can reach over HTTP (port 8123), database `faa`
-* **Loader**: Java 21 / Maven, ClickHouse `client-v2`
-* **Dashboards**: Grafana with the `grafana-clickhouse-datasource` plugin, querying ClickHouse over its native protocol (port 9000)
+* **BigQuery**: a dataset (default `faa`) in any Google Cloud project you can run queries in
+* **Loader**: Java 21 / Maven, the Google Cloud BigQuery client; scripts use the `bq` CLI
+* **Dashboards**: Grafana with the `grafana-bigquery-datasource` plugin
 
-Developed with ClickHouse 26.9 and Grafana 13. The ten years of data from 2016 take about
-5 GB of downloads and about 10 GB in ClickHouse.
+This is a port of [clickhouse-faadata-demo](https://github.com/srmadscience/clickhouse-faadata-demo):
+the same data, tables and dashboards, on BigQuery instead of ClickHouse. The ten years of
+data from 2016 take about 5 GB of downloads.
 
 ![Flight Delays dashboard, February to July 2026](docs/screenshots/flight-delays.jpg)
 
@@ -17,6 +18,7 @@ Developed with ClickHouse 26.9 and Grafana 13. The ten years of data from 2016 t
 | `faa.ontime` | [BTS on-time performance](https://www.transtats.bts.gov/) | one row per scheduled flight; times are airport-local |
 | `faa.stations` | [IEM](https://mesonet.agron.iastate.edu/) ASOS station metadata | one row per weather station, incl. time zone |
 | `faa.weather` | [IEM ASOS](https://mesonet.agron.iastate.edu/request/download.phtml) observations | one row per METAR (roughly hourly), UTC |
+| `faa.weather_load` | | staging for `load-weather.sh`: the last batch loaded |
 | `faa.airports` | [OurAirports](https://ourairports.com/data/) | one row per airport worldwide: codes, names, coordinates |
 | `faa.airport_station` (view) | | BTS airport code → IEM station and time zone |
 | `faa.registry_master`, `faa.registry_dereg`, `faa.registry_models` | [FAA aircraft registry](https://www.faa.gov/licenses_certificates/aircraft_certification/aircraft_registry/releasable_aircraft_download) | registered and deregistered aircraft; make/model reference |
@@ -35,37 +37,45 @@ are never loaded, and owner names only for organisations, not individuals.
 
 ## Layout
 
-    src/main/java/...      Loader: ping | schema | load (streams CSV / .gz / .zip) | bench (query timing)
-    sql/                   Table definitions, run in file-name order
-    scripts/               Everything needed to rebuild the database and Grafana (below)
-    aws/                   CloudFormation template for a complete demo server (below)
+    src/main/java/...      Loader: ping | schema | load (CSV / .gz / .zip as load jobs) | bench (query timing)
+    sql/                   Table and view definitions, run in file-name order
+    scripts/               Everything needed to rebuild the dataset and Grafana (below)
+    gcp/                   Script that builds a complete demo server on Google Cloud (below)
     grafana/provisioning/  Datasource + dashboard provider config
     grafana/dashboards/    Exported dashboard JSON (committed)
     data/                  Downloaded data: NOT in git (see data/README.md)
 
 ## Reproducing the database
 
-Needs bash, curl, python3, Java 21 and Maven, and a ClickHouse server whose user can
-create databases.
+Needs bash, curl, python3, perl, Java 21 and Maven, the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+(for `bq`), and a Google Cloud project with BigQuery, where you can create datasets and run
+jobs (the BigQuery User and BigQuery Data Editor roles, or Owner).
 
-    cp clickhouse.properties.example clickhouse.properties   # set clickhouse.url, user, password
+    gcloud auth login                         # for bq
+    gcloud auth application-default login     # for the Java loader
+    cp bigquery.properties.example bigquery.properties   # set bigquery.project, dataset, location
     scripts/reproduce.sh 2025-01 2025-12
 
-`clickhouse.properties` is git-ignored, so credentials stay out of the repository.
-The `CLICKHOUSE_URL`, `CLICKHOUSE_USER` and `CLICKHOUSE_PASSWORD` environment variables
-override it.
+`bigquery.properties` is git-ignored. The `BIGQUERY_PROJECT`, `BIGQUERY_DATASET`,
+`BIGQUERY_LOCATION` and `BIGQUERY_CREDENTIALS` environment variables override it. Instead of
+your own login, `bigquery.credentials` can name a service-account key file, which both `bq`
+and the loader then use.
+
+The SQL and dashboards are written for a dataset called `faa`; with any other
+`bigquery.dataset`, the scripts substitute its name as they run or install them, so several
+copies can share a project.
 
 `reproduce.sh` runs these steps in order. Each is safe to re-run, and can be run on its own:
 
 | Script | Does |
 |--------|------|
-| `create-database.sh` | Creates `faa` and the tables from `sql/` |
+| `create-database.sh` | Creates the dataset and the tables and views from `sql/` |
 | `fetch-flights.sh FROM TO` | Downloads BTS months (`YYYY-MM`) not already in `data/raw/flights/` |
-| `load-flights.sh` | Loads them, replacing each month's partition |
+| `load-flights.sh` | Loads them, each month's load job replacing that month's partition |
 | `build-tail-day.sh` | Rebuilds `tail_day`; re-run after loading flights |
 | `fetch-stations.sh` / `load-stations.sh` | Gets IEM stations and OurAirports; lists airports with no station |
 | `fetch-weather.sh FROM TO` | Downloads IEM observations (years) for every airport in `faa.ontime` |
-| `load-weather.sh` | Loads them; duplicates are removed by the table engine |
+| `load-weather.sh` | Loads them, replacing any observations already loaded and dropping duplicates |
 | `build-flight-weather.sh` | Rebuilds `flight_weather`; re-run after loading flights, stations or weather |
 | `fetch-registry.sh` / `load-registry.sh` | Gets the FAA registry; replaces the registry tables and `aircraft_info` |
 
@@ -80,129 +90,107 @@ weather, the station list or the registry up to date, use `--refresh`:
     scripts/fetch-stations.sh --refresh
     scripts/fetch-registry.sh --refresh
 
-### Hardware and load times
+### How the data gets into BigQuery
 
-A full load of January 2016 to July 2026 from an empty server, timed in October 2026 on
-three setups:
+* **Load jobs, not inserts.** The Java loader reads each CSV (plain, gzipped, or inside the
+  BTS zip), matches its columns to the table's by name, and uploads the result, gzipped, as
+  one BigQuery load job. Load jobs are free; BigQuery allows 1,500 a day per table, so a
+  full reload of ten years of flights (127 jobs) can be repeated about ten times a day.
+  `LOAD_JOBS` (default 8) sets how many run at once.
+* **Months are partitions.** `ontime`, `tail_day` and `flight_weather` are partitioned by
+  month. Each month of flights is loaded straight into its partition (`ontime$202506`),
+  replacing it, so a reload never duplicates flights.
+* **`tail` is computed by the loader.** BTS reports Allegiant's tail numbers without the
+  `N`; the loader adds a normalised `tail` column, and `ontime` is clustered by it, so one
+  aircraft's flights are read without scanning everyone else's.
+* **Weather is merged.** Each year of observations is loaded into `weather_load`, then, in
+  one transaction, replaces any rows in `weather` with the same station and time.
+* **Flights meet weather in a window.** BigQuery has no ASOF JOIN, so `build-flight-weather.sh`
+  puts flights and observations into one stream per station and day, and carries the latest
+  observation forward onto each flight with `LAST_VALUE(... IGNORE NULLS)`. On June 2025,
+  every one of the 611,545 matches agreed with a brute-force join.
+* **Empty values.** As in the ClickHouse version, empty strings are `''`, never NULL, so the
+  SQL can test `tail = ''`. Empty numbers are NULL; unlike the ClickHouse version, that
+  includes the quoted empty times (`DepTime` etc.) of cancelled flights, which ClickHouse read as 0.
+* **Personal data.** Owner street addresses are blanked before the registry files leave the
+  machine, and so are the names of individual owners; only organisations' names are uploaded.
 
-* **Home**: ClickHouse on an Intel Core i5-6500 (4 cores, 4 threads, 3.2 GHz, 3.6 GHz
-  turbo, 6 MB L3) with 48 GB RAM and an SSD; the scripts and Java loader on an Apple M2
-  Mac (16 GB RAM) on the same local network; downloads over the internet
-* **AWS**: everything on one instance in us-east-1, built by
-  [`aws/faa-demo.yaml`](#running-on-aws): an m7i.xlarge (4 vCPUs, 16 GB RAM) or an
-  m7i.2xlarge (8 vCPUs, 32 GB RAM), each with a gp3 disk
+### Load times
 
-Both used ClickHouse 26.9 and Java 21. The loader parses the flight CSVs itself, 8 files
-at a time, and downloads come from the [data mirror](#data-mirror), four files at a time.
+Measured in October 2026 from an Apple M2 Mac (16 GB RAM) over a home connection, to the
+`US` multi-region, with one month of flights (June 2025) and one year of weather (2025):
 
-| Step | Home | AWS, 4 vCPUs | AWS, 8 vCPUs | AWS, 8 vCPUs, with `by_tail` |
-|------|-----:|-----:|-----:|-----:|
-| `create-database.sh` | 1 s | 0 s | 0 s | 0 s |
-| `fetch-flights.sh 2016-01 2026-07` (127 months, 3.3 GB) | 7 min 11 s | 2 min 28 s | 2 min 16 s | 2 min 23 s |
-| `load-flights.sh` (68.4 million flights) | 1 min 27 s | 3 min 3 s | 1 min 26 s | 1 min 39 s |
-| `build-tail-day.sh` | 21 s | 12 s | 8 s | 9 s |
-| `fetch-stations.sh` / `load-stations.sh` | 3 s | 2 s | 2 s | 1 s |
-| `fetch-weather.sh 2016 2026` (11 years, 1.6 GB) | 2 min 55 s | 13 s | 12 s | 14 s |
-| `load-weather.sh` (42.2 million reports) | 2 min 46 s | 1 min 25 s | 58 s | 1 min 0 s |
-| `build-flight-weather.sh` | 2 min 43 s | 1 min 35 s | 1 min 9 s | 1 min 10 s |
-| `fetch-registry.sh` / `load-registry.sh` | 24 s | 6 s | 5 s | 6 s |
-| **Total** | **17 min 51 s** | **9 min 4 s** | **6 min 16 s** | **6 min 42 s** |
+| Step | Time |
+|------|-----:|
+| `create-database.sh` (16 statements, one `bq` call each) | 30 s |
+| `load-flights.sh` (1 month, 611,575 flights) | 1 min 24 s |
+| `build-tail-day.sh` | 10 s |
+| `load-stations.sh` | 18 s |
+| `load-weather.sh` (1 year, 3.85 million reports) | 3 min 41 s |
+| `build-flight-weather.sh` | 23 s |
+| `load-registry.sh` | 1 min 21 s |
 
-At home, downloading takes over half the time. On AWS it is much faster, but with four
-vCPUs parsing the flight CSVs is slower, as the loader shares them with ClickHouse
-instead of having the M2's eight cores to itself; with eight it matches the M2. Doubling
-again to an m7i.4xlarge (16 vCPUs) barely helps: everything but the downloads took 199 s,
-against 225 s on 8 vCPUs, all of it saved in `load-flights`, so 8 vCPUs is the better buy. Either way, the result is 197 million rows: 41 GB
-of data, stored in 10 GB, and the tables are identical.
-
-The last column adds the `by_tail` projection on `faa.ontime` (see
-[Query performance](#query-performance)), which stores every flight a second time. It
-takes `ontime` from 4.4 GiB to 9.4 GiB on disk. On AWS with 8 vCPUs it adds 13 s to
-`load-flights`, and the tables are otherwise identical. At home the cost is bigger:
-`load-flights` went from 87 s to 141 s.
-
-To time a load from scratch, drop the `faa` database and move the downloaded files out of
-`data/raw/`, then run:
+A full ten-year load has not been timed yet. The loader's time goes mostly into reading,
+converting and compressing the CSVs on the client, and the upload; the build steps run
+entirely in BigQuery. To time a load from scratch, delete the dataset (`bq rm -r -f faa`)
+and move the downloaded files out of `data/raw/`, then run:
 
     scripts/reproduce.sh --time "what changed since the last test" 2016-01 2026-07
 
-This appends each step's time to [`testresults_load.csv`](testresults_load.csv), with the
-date, git commit, ClickHouse version and the comment, so runs can be compared.
+This appends each step's time to `testresults_load.csv`, with the date, git commit,
+BigQuery location and the comment, so runs can be compared.
+
+### Costs
+
+Loading is free. Storage of the full dataset (about 10 GB in ClickHouse; BigQuery bills
+uncompressed logical bytes by default, so expect several times that) costs a few dollars a
+month at most. Queries are billed by the bytes they read: with on-demand pricing the first
+TiB a month is free, then about $6.25 per TiB. The dashboards filter on the partitioning
+date and select only the columns they need, so a panel over six months typically reads tens
+to hundreds of MB; every query is billed at least 10 MB per table. The build scripts read
+the whole of `ontime` (and `weather`) each time they rebuild everything; give them months
+(`scripts/build-flight-weather.sh 202606`) to rebuild just those. The Grafana datasource
+can cap the bytes a query may bill (`MaxBytesBilled`).
 
 ## Query performance
 
-`scripts/bench-queries.sh` runs randomly generated queries against the loaded database,
+`scripts/bench-queries.sh` runs randomly generated queries against the loaded dataset,
 many at once, and times each one until its last row has been read. So far there is one
-workload. `flight-history` fetches every flight of one aircraft, picked at random from the
-9,605 that have flown, between two random dates 1 day to 10 years apart. The length of the
+workload. `flight-history` fetches every flight of one aircraft, picked at random from
+those that have flown, between two random dates 1 day to 10 years apart. The length of the
 range is spread evenly on a log scale, so days, weeks, months and years are equally likely.
 
     scripts/bench-queries.sh flight-history --threads 8 --duration 60     # as fast as possible
     scripts/bench-queries.sh flight-history --rate 5 --duration 60        # 5 queries a second
 
 - **Without `--rate`**, each of the threads runs queries back to back. This measures the
-  most the server can do.
+  most BigQuery will do for one client.
 - **With `--rate`**, queries start on schedule, whatever happened to the earlier ones.
-  Each query is timed from when it was due to start, so when the server falls behind,
+  Each query is timed from when it was due to start, so when BigQuery falls behind,
   the latencies grow instead of the rate quietly dropping.
 
 The results are latency percentiles, overall and by length of range. `--log FILE` writes
 one line per query, and `--seed N` repeats an earlier run's queries. Add `--time
-"what changed"` before the workload to append a summary to
-[`testresults_query.csv`](testresults_query.csv), as `reproduce.sh` does for loads.
+"what changed"` before the workload to append a summary to `testresults_query.csv`, as
+`reproduce.sh` does for loads.
 
-Each test ran 8 threads back to back for 60 seconds, from the M2 against the i5-6500,
-with the same seed, so the queries were identical.
+Queries bypass BigQuery's result cache, so each one really runs, and use its short query
+mode, which skips creating a job when it can. Because `ontime` is clustered by `tail`, a
+query reads only that aircraft's blocks of each monthly partition in the range; this does
+what the `by_tail` projection did in the ClickHouse version, without a second copy of the
+table.
 
-| Range | Flights returned | Ordered by date: p50 / p99 | `by_tail` projection: p50 / p99 |
-| --- | ---: | ---: | ---: |
-| 1 to 7 days | 6 | 54 ms / 278 ms | 39 ms / 184 ms |
-| 8 to 31 days | 28 | 124 ms / 358 ms | 44 ms / 225 ms |
-| 1 to 12 months | 228 | 281 ms / 6.8 s | 85 ms / 586 ms |
-| 1 to 10 years | 2,629 | 3.2 s / 19.4 s | 354 ms / 2.2 s |
-| **Queries a second** | | **5.7** | **41.4** |
-
-The same test on the AWS m7i.2xlarge with the projection, run on the server itself, managed
-91.9 queries a second: p50 / p99 of 12 ms / 44 ms for up to a week, and 169 ms / 869 ms
-for 1 to 10 years.
-
-At a steady 20 queries a second, about half what the i5-6500 manages flat out, it keeps up
-easily: 13 ms / 28 ms for up to a week, 117 ms / 631 ms for 1 to 10 years, and a p99 of
-489 ms overall, against 1.4 s when it is saturated. The AWS m7i.2xlarge, running the test on
-the server itself, does the same with less latency: 8 ms / 17 ms for up to a week, 90 ms /
-645 ms for 1 to 10 years, and a p99 of 460 ms overall. Short ranges gain most from
-having no network in the way; the long ranges, which return thousands of rows, barely
-improve.
-
-At 30 queries a second it is barely different: 13 ms / 34 ms for up to a week, 124 ms /
-658 ms for 1 to 10 years, and a p99 of 546 ms overall.
-
-At 40 queries a second, just under what the i5-6500 manages flat out, it still completes
-every query on schedule on average, but there is no headroom. The p50 holds at 30 ms
-overall, while the p99 jumps to 4.1 s; even queries for up to a week see 2.6 s. When a
-few long ranges arrive together, they probably hold up the queries behind them.
-
-    scripts/bench-queries.sh flight-history --rate 20 --threads 32 --duration 60
-
-- **Ordered by date.** `faa.ontime` is ordered by date, not by aircraft. To find one
-  aircraft's flights, every flight in the range is read and `tail` is computed for each,
-  so the cost grows with the length of the range.
-- **With the projection.**
-  [`sql/16_ontime_by_tail.sql`](sql/16_ontime_by_tail.sql) adds `by_tail`, a second copy
-  of the table ordered by aircraft and then date, so only that aircraft's rows are read.
-  It costs load time and disk space (see [Hardware and load times](#hardware-and-load-times)).
-- **The `ORDER BY` catch.** A query that sorts by `FlightDate` doesn't use the projection
-  on its own. Because the table is already in date order, ClickHouse reads it in that
-  order and rejects the projection, which made the first test with it slower (3.6 queries
-  a second). Queries filtering on `tail` therefore add `SETTINGS optimize_read_in_order =
-  0`, as the benchmark and the Aircraft Reliability dashboard do. To check a query, run
-  `EXPLAIN` on it and look for `ReadFromMergeTree (by_tail)`.
+With only June 2025 loaded, 8 threads back to back for 20 seconds from the M2 managed 23
+queries a second, with a p50 of 327 ms and a p99 of 735 ms. BigQuery's latency is mostly
+fixed overhead per query rather than work, so expect it to change little with the length
+of the range. Full-dataset numbers are still to be measured.
 
 ## Data mirror
 
 The original sources are slow (IEM weather alone takes about 10 hours at one request at a
 time), so the raw files are also published as [GitHub Releases](https://github.com/srmadscience/clickhouse-faadata-demo/releases)
-on this repository: public, free to download, and outside git itself.
+on the ClickHouse version of this project, which uses exactly the same files: public, free
+to download, and outside git itself.
 
 | Release | Files |
 |---------|-------|
@@ -217,38 +205,41 @@ After fetching new data, update the mirror with:
 
     scripts/publish-data.sh              # DRY_RUN=1 to see what it would upload
 
-It uses the `gh` CLI and uploads only files that are new or changed. The weather data
+It uses the `gh` CLI, needs write access to `DATA_REPO`, and uploads only files that are new or changed. The weather data
 comes from the Iowa Environmental Mesonet, which asks to be credited; the other sources
 are public domain.
 
 ## Grafana
 
-Grafana queries ClickHouse directly over its native protocol (port 9000), so the Grafana
-server must be able to reach the ClickHouse server. Install the
-[ClickHouse plugin](https://grafana.com/grafana/plugins/grafana-clickhouse-datasource/) first.
+Grafana queries BigQuery through the [BigQuery plugin](https://grafana.com/grafana/plugins/grafana-bigquery-datasource/)
+(3.x), so it needs internet access and a Google identity that may read the dataset and run
+query jobs (the BigQuery Data Viewer and BigQuery Job User roles). Install the plugin first.
 
 **Automatic setup** works for a Grafana installed from the Linux packages (configuration in
 `/etc/grafana`, run by systemd as `grafana-server`) on a machine you can SSH into with a key
-and passwordless sudo. Add to `clickhouse.properties`:
+and passwordless sudo. Add to `bigquery.properties`:
 
     grafana.ssh=user@grafana-host
-    # Only if Grafana must use a different address for ClickHouse than clickhouse.url:
-    #grafana.clickhouse.host=clickhouse-host
+    # How Grafana logs in to BigQuery: key (the bigquery.credentials key file) or
+    # gce (the service account of the Google Cloud VM it runs on)
+    #grafana.bigquery.auth=gce
 
 then run, now and after changing anything in `grafana/`:
 
     scripts/grafana-provision.sh
 
 This installs the datasource and dashboard provider from `grafana/provisioning/`, copies
-`grafana/dashboards/*.json`, puts the ClickHouse credentials in a root-only
-`/etc/grafana/faa-clickhouse.env`, restarts Grafana and prints the dashboard links.
-`clickhouse.properties.example` lists the other settings. The datasource is
-"ClickHouse FAA" (uid `clickhouse-faa`); being provisioned, it is read-only in the UI.
+`grafana/dashboards/*.json` (with the dataset name substituted), and, with a key file,
+puts its private key in `/etc/grafana/faa-bigquery-key.pem`, readable only by root and
+Grafana. It then restarts Grafana and prints the dashboard links.
+`bigquery.properties.example` lists the other settings. The datasource is
+"BigQuery FAA" (uid `bigquery-faa`); being provisioned, it is read-only in the UI.
 
 **Any other Grafana** (Docker, Grafana Cloud, Windows): in Connections > Data sources, add a
-ClickHouse data source with uid `clickhouse-faa`, the native protocol, port 9000 and default
-database `faa`. The uid must match, because the dashboards refer to it. Then import each file
-in `grafana/dashboards/` with Dashboards > New > Import.
+Google BigQuery data source with uid `bigquery-faa`, your project as the default project and
+your dataset's location as the processing location. The uid must match, because the
+dashboards refer to it. Then import each file in `grafana/dashboards/` with Dashboards > New
+> Import. If your dataset isn't called `faa`, replace `faa.` in the files' queries first.
 
 Dashboards (folder "FAA"):
 
@@ -264,7 +255,13 @@ so weather and air-traffic cancellations don't count against an airline, and onl
 aircraft, city pairs or flight numbers with at least "Min flights flown" completed flights
 in the time range.
 
+BigQuery column names can't contain characters such as `/`, `(` or `°`, so where a label
+needs them (`Cxl/1k`, `Min temp (°F)`), the query uses a plain name and the panel's
+"Organize fields" transformation renames it back.
+
 ### Screenshots
+
+These were taken with the ClickHouse version of this project; the dashboards are the same.
 
 **Flight Delays**, February to July 2026: headline figures, delays and cancellations by
 day, delay causes by month and the airline table (top, above); further down, the airport
@@ -298,30 +295,26 @@ aircraft (all ten flown by Spirit), and one aircraft's history (N511AE, a PSA Ai
 To add a dashboard: build it in Grafana, export it as JSON (Share > Export), save it in
 `grafana/dashboards/`, commit, and re-run the script.
 
-## Running on AWS
+## Running on Google Cloud
 
-[`aws/faa-demo.yaml`](aws/faa-demo.yaml) is a CloudFormation template that builds the
-whole demo on one EC2 instance (Ubuntu 24.04, m7i.xlarge by default) in a new VPC, with
-only ports 22 (SSH) and 3000 (Grafana) open:
+[`gcp/create-vm.sh`](gcp/create-vm.sh) builds the whole demo in a Google Cloud project:
+a service account that may use BigQuery, and a Compute Engine VM (Ubuntu 24.04,
+e2-standard-4 by default) that runs as it, with only port 3000 (Grafana) open:
 
-* ClickHouse, with its built-in Prometheus endpoint switched on
-* Prometheus, scraping ClickHouse and node_exporter
-* Grafana, with the FAA dashboards, [Node Exporter Full](https://grafana.com/grafana/dashboards/1860)
-  and [Clickhouse internal exporter](https://grafana.com/grafana/dashboards/13500)
-* this repository, with the flights and weather from `LoadFrom` to `LoadTo` loaded
+* Grafana, with the BigQuery plugin and the FAA dashboards, logged in to BigQuery as the
+  VM's service account (no keys)
+* this repository, with the flights and weather from `LOAD_FROM` to `LOAD_TO` loaded into
+  BigQuery
 
-    aws cloudformation create-stack --stack-name faa-demo \
-      --template-body file://aws/faa-demo.yaml \
-      --parameters ParameterKey=KeyName,ParameterValue=my-key \
-                   ParameterKey=AllowedCidr,ParameterValue=$(curl -s https://checkip.amazonaws.com)/32
-    aws cloudformation describe-stacks --stack-name faa-demo --query 'Stacks[0].Outputs'
+    ALLOWED_CIDR=$(curl -s https://checkip.amazonaws.com)/32 GRAFANA_PASSWORD=secret gcp/create-vm.sh
 
-Grafana's user is `admin`, with the password in the `GrafanaPassword` parameter (default
-`hiredavid`). `AllowedCidr` defaults to anywhere, so set it to your own address. The
-instance clones the repository and runs [`scripts/install-server.sh`](scripts/install-server.sh),
-which works on any fresh Ubuntu 24.04 machine; follow its progress, about 10 to 15
-minutes with the load, in `/var/log/faa-setup.log`. ClickHouse, Prometheus and node_exporter
-listen only on localhost. Delete the stack to remove everything.
+Grafana's user is `admin`, with the password in `GRAFANA_PASSWORD` (default `hiredavid`).
+`ALLOWED_CIDR` defaults to anywhere, so set it to your own address. The VM clones the
+repository and runs [`scripts/install-server.sh`](scripts/install-server.sh), which works
+on any fresh Ubuntu 24.04 VM on Compute Engine; follow its progress in
+`/var/log/faa-setup.log` (the script prints the `gcloud compute ssh` command).
+`gcp/create-vm.sh --delete` removes the VM and the firewall rule; the dataset stays until
+you delete it with `bq rm -r -f faa`.
 
 ## Large data files
 

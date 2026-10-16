@@ -13,34 +13,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Rebuilds faa.tail_day (flights per aircraft per day) from faa.ontime, one
-# month at a time, replacing each month's partition. Run after loading flights.
+# Rebuilds faa.tail_day (flights per aircraft per day) from faa.ontime, in one
+# transaction that replaces the months given, or all of them. Run after
+# loading flights.
 #
 #   scripts/build-tail-day.sh            every month in faa.ontime
 #   scripts/build-tail-day.sh 202501     just these months
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
-ch_check_connection
+bq_check_connection
 
-months=("$@")
-[[ ${#months[@]} -gt 0 ]] || months=($(ch_query "SELECT DISTINCT toYYYYMM(FlightDate) FROM faa.ontime ORDER BY 1"))
+where="TRUE"
+if [[ $# -gt 0 ]]; then
+  for m in "$@"; do [[ "$m" =~ ^[0-9]{6}$ ]] || { echo "error: months are YYYYMM, not $m" >&2; exit 1; }; done
+  list=$(printf "'%s'," "$@")
+  where="FORMAT_DATE('%Y%m', FlightDate) IN (${list%,})"
+fi
 
-for m in "${months[@]}"; do
-  ch_query "ALTER TABLE faa.tail_day DROP PARTITION $m"
-  ch_query "
-    INSERT INTO faa.tail_day
-    SELECT FlightDate, Reporting_Airline, tail,
-           count(), countIf(Cancelled = 0),
-           countIf(Cancelled = 1 AND CancellationCode = 'A'),
-           countIf(Cancelled = 1 AND CancellationCode != 'A'),
-           countIf(Diverted = 1),
-           sum(ifNull(CarrierDelay, 0)), countIf(CarrierDelay >= 15)
-    FROM faa.ontime
-    WHERE toYYYYMM(FlightDate) = $m
-    GROUP BY FlightDate, Reporting_Airline, tail"
-done
+bq_run "
+  BEGIN TRANSACTION;
+  DELETE FROM faa.tail_day WHERE $where;
+  INSERT INTO faa.tail_day
+  SELECT FlightDate, Reporting_Airline, tail,
+         COUNT(*), COUNTIF(Cancelled = 0),
+         COUNTIF(Cancelled = 1 AND CancellationCode = 'A'),
+         COUNTIF(Cancelled = 1 AND CancellationCode != 'A'),
+         COUNTIF(Diverted = 1),
+         IFNULL(SUM(CarrierDelay), 0), COUNTIF(CarrierDelay >= 15)
+  FROM faa.ontime
+  WHERE $where
+  GROUP BY FlightDate, Reporting_Airline, tail;
+  COMMIT TRANSACTION;"
 
-ch_query "
-  SELECT (SELECT count() FROM faa.ontime) AS ontime_flights,
-         sum(flights) AS tail_day_flights, count() AS tail_day_rows
-  FROM faa.tail_day FORMAT PrettyCompact"
+bq_query "
+  SELECT (SELECT COUNT(*) FROM faa.ontime) AS ontime_flights,
+         SUM(flights) AS tail_day_flights, COUNT(*) AS tail_day_rows
+  FROM faa.tail_day"

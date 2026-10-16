@@ -16,26 +16,19 @@
 
 package ie.rolfe.faadata;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.SequenceInputStream;
+import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.zip.Deflater;
 import java.util.zip.GZIPInputStream;
@@ -43,84 +36,93 @@ import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.DataStreamWriter;
-import com.clickhouse.client.api.insert.InsertResponse;
-import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.data.ClickHouseFormat;
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.CsvOptions;
+import com.google.cloud.bigquery.Field;
+import com.google.cloud.bigquery.Job;
+import com.google.cloud.bigquery.JobId;
+import com.google.cloud.bigquery.JobInfo;
+import com.google.cloud.bigquery.JobStatistics.LoadStatistics;
+import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.StandardTableDefinition;
+import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableDataWriteChannel;
+import com.google.cloud.bigquery.TableId;
+import com.google.cloud.bigquery.TimePartitioning;
+import com.google.cloud.bigquery.WriteChannelConfiguration;
 
 /**
  * Command-line entry point.
  *
  * <pre>
- *   ping                          check connectivity and print the server version
+ *   ping                          check connectivity and that the dataset exists
  *   schema &lt;file.sql&gt;...          run ';'-separated DDL statements
- *   load &lt;table&gt; [--set k=v]... [--combine | --binary] [--jobs N] &lt;path&gt;...
- *                                 stream CSV files (plain, .gz or .zip) into a table,
- *                                 applying ClickHouse settings to each insert
+ *   load &lt;table&gt; [--replace | --replace-partition] [--combine] [--jobs N] &lt;path&gt;...
+ *                                 load CSV files (plain, .gz or .zip) into a table
  *   bench &lt;workload&gt; [options]     time randomly generated queries (see {@link QueryBench})
  * </pre>
  *
- * Files are streamed straight from disk to ClickHouse, so memory use is
- * independent of file size. Each file is one insert, unless --combine is given:
- * then all the plain or .gz files under each path go in one insert, which is much
- * faster for many small files. Their header lines must be identical.
+ * Each file is one BigQuery load job: the loader matches the CSV's columns to
+ * the table's by name (see {@link CsvConverter}) and streams the result,
+ * gzipped, as a resumable upload, so memory use is independent of file size.
+ * Load jobs are free, but BigQuery allows 1,500 a day per table.
  * <p>
- * --binary parses the CSV here and sends it gzipped in ClickHouse's Native
- * format (see {@link CsvNative}), which leaves the server far less to do.
- * --jobs N loads N files at a time.
+ * By default the rows are appended. --replace replaces the whole table.
+ * --replace-partition replaces just the partition holding the file's first row
+ * (the job fails if any row belongs to another), which is how a month of
+ * flights is reloaded. --combine puts all the files under each path in one load
+ * job, which is much faster for many small files. --jobs N runs N load jobs at a time.
  */
 public class Loader {
-
-    private static final long TIMEOUT_MINUTES = 60;
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
             usage();
             return;
         }
-        ClickHouseConfig config = ClickHouseConfig.load();
+        BigQueryConfig config = BigQueryConfig.load();
         if (args[0].equals("bench")) {
             QueryBench.run(config, List.of(args).subList(1, args.length));
             return;
         }
-        try (Client client = config.newClient()) {
-            switch (args[0]) {
-                case "ping" -> ping(client, config);
-                case "schema" -> schema(client, List.of(args).subList(1, args.length));
-                case "load" -> {
-                    if (args.length < 3) {
-                        usage();
-                        System.exit(1);
-                    }
-                    load(client, args[1], List.of(args).subList(2, args.length));
-                }
-                default -> {
+        BigQuery bigquery = config.newClient();
+        switch (args[0]) {
+            case "ping" -> ping(bigquery, config);
+            case "schema" -> schema(bigquery, config, List.of(args).subList(1, args.length));
+            case "load" -> {
+                if (args.length < 3) {
                     usage();
                     System.exit(1);
                 }
+                load(bigquery, config, args[1], List.of(args).subList(2, args.length));
+            }
+            default -> {
+                usage();
+                System.exit(1);
             }
         }
     }
 
     private static void usage() {
-        System.err.println("usage: Loader ping | schema <file.sql>... | load <table> [--set k=v]... [--combine | --binary] [--jobs N] <file-or-dir>...\n"
+        System.err.println("usage: Loader ping | schema <file.sql>... | load <table> [--replace | --replace-partition] [--combine] [--jobs N] <file-or-dir>...\n"
                 + "     | bench flight-history [--rate Q] [--threads N] [--duration S] [--timeout S] [--seed N] [--log file.csv]");
     }
 
-    private static void ping(Client client, ClickHouseConfig config) throws Exception {
-        var records = client.queryAll("SELECT version()");
-        System.out.println("Connected to " + config.endpoint() + " as " + config.user()
-                + ", ClickHouse " + records.get(0).getString(1));
+    private static void ping(BigQuery bigquery, BigQueryConfig config) throws Exception {
+        bigquery.query(QueryJobConfiguration.of("SELECT 1"));
+        String project = bigquery.getOptions().getProjectId();
+        System.out.println("Connected to BigQuery project " + project + ", location " + config.location()
+                + "; dataset " + config.dataset()
+                + (bigquery.getDataset(config.dataset()) == null ? " does not exist yet" : " exists"));
     }
 
-    private static void schema(Client client, List<String> files) throws Exception {
+    private static void schema(BigQuery bigquery, BigQueryConfig config, List<String> files) throws Exception {
         for (String file : files) {
             for (String stmt : Files.readString(Path.of(file)).split(";")) {
                 String sql = stripComments(stmt).strip();
                 if (!sql.isEmpty()) {
                     System.out.println("Executing: " + sql.lines().findFirst().orElse(""));
-                    client.execute(sql).get(TIMEOUT_MINUTES, TimeUnit.MINUTES).close();
+                    bigquery.query(QueryJobConfiguration.of(config.sql(sql)));
                 }
             }
         }
@@ -130,55 +132,65 @@ public class Loader {
         return sql.lines().filter(l -> !l.strip().startsWith("--")).reduce("", (a, b) -> a + b + "\n");
     }
 
-    private static void load(Client client, String table, List<String> args) throws Exception {
-        InsertSettings settings = new InsertSettings();
+    private enum Mode { APPEND, REPLACE, REPLACE_PARTITION }
+
+    private static void load(BigQuery bigquery, BigQueryConfig config, String tableName, List<String> args)
+            throws Exception {
         List<String> paths = new ArrayList<>();
+        Mode mode = Mode.APPEND;
         boolean combine = false;
-        boolean binary = false;
         int jobs = 1;
         for (int i = 0; i < args.size(); i++) {
-            if (args.get(i).equals("--combine")) {
-                combine = true;
-            } else if (args.get(i).equals("--binary")) {
-                binary = true;
-            } else if (args.get(i).equals("--jobs") && i + 1 < args.size()) {
-                jobs = Integer.parseInt(args.get(++i));
-            } else if (args.get(i).equals("--set") && i + 1 < args.size()) {
-                String[] kv = args.get(++i).split("=", 2);
-                if (kv.length != 2) {
-                    throw new IllegalArgumentException("--set expects key=value, got " + args.get(i));
-                }
-                settings.serverSetting(kv[0], kv[1]);
-            } else {
-                paths.add(args.get(i));
+            switch (args.get(i)) {
+                case "--replace" -> mode = Mode.REPLACE;
+                case "--replace-partition" -> mode = Mode.REPLACE_PARTITION;
+                case "--combine" -> combine = true;
+                case "--jobs" -> jobs = Integer.parseInt(args.get(++i));
+                default -> paths.add(args.get(i));
             }
         }
-        if (combine && binary) {
-            throw new IllegalArgumentException("--combine and --binary can't be used together");
+        TableId tableId = config.table(tableName);
+        Table table = bigquery.getTable(tableId);
+        if (table == null) {
+            throw new IllegalArgumentException("table " + tableName + " not found in dataset " + config.dataset());
         }
-        Map<String, String> types = binary ? insertableColumns(client, table) : null;
-        long totalRows = 0;
+        StandardTableDefinition definition = table.getDefinition();
+        List<Field> schema = definition.getSchema().getFields();
+        TimePartitioning partitioning = definition.getTimePartitioning();
+        if (mode == Mode.REPLACE_PARTITION && (partitioning == null || partitioning.getField() == null)) {
+            throw new IllegalArgumentException("--replace-partition: " + tableName + " is not partitioned by a column");
+        }
+        if (mode == Mode.REPLACE && (combine ? paths.size() : expand(paths).size()) > 1) {
+            throw new IllegalArgumentException("--replace with more than one load job would keep only the last");
+        }
+
+        // One load job per file, or per path with --combine.
+        List<List<Path>> batches = new ArrayList<>();
         if (combine) {
             for (String path : paths) {
-                List<Path> files = expand(List.of(path));
-                long start = System.nanoTime();
-                long rows = insert(client, table, new ConcatenatedCsv(files), settings);
-                totalRows += rows;
-                System.out.printf("%s (%,d files) -> %s: %,d rows in %.1fs%n",
-                        path, files.size(), table, rows, (System.nanoTime() - start) / 1e9);
+                batches.add(expand(List.of(path)));
             }
-            System.out.printf("Total: %,d rows%n", totalRows);
-            return;
+        } else {
+            for (Path file : expand(paths)) {
+                batches.add(List.of(file));
+            }
         }
         ExecutorService pool = Executors.newFixedThreadPool(jobs);
+        long totalRows = 0;
         try {
             List<Future<Long>> results = new ArrayList<>();
-            for (Path file : expand(paths)) {
+            for (List<Path> files : batches) {
+                Mode m = mode;
                 results.add(pool.submit(() -> {
                     long start = System.nanoTime();
-                    long rows = loadFile(client, table, file, settings, types);
+                    TableId target = m == Mode.REPLACE_PARTITION
+                            ? TableId.of(tableId.getProject(), tableId.getDataset(),
+                                    tableId.getTable() + "$" + partition(files.get(0), partitioning))
+                            : tableId;
+                    long rows = loadJob(bigquery, config, target, schema, files, m != Mode.APPEND);
                     System.out.printf("%s -> %s: %,d rows in %.1fs%n",
-                            file, table, rows, (System.nanoTime() - start) / 1e9);
+                            files.size() == 1 ? files.get(0) : files.get(0).getParent() + " (" + files.size() + " files)",
+                            target.getTable(), rows, (System.nanoTime() - start) / 1e9);
                     return rows;
                 }));
             }
@@ -195,81 +207,105 @@ public class Loader {
         System.out.printf("Total: %,d rows%n", totalRows);
     }
 
-    /** The columns of {@code table} an insert can set (not ALIAS or MATERIALIZED): name to type. */
-    private static Map<String, String> insertableColumns(Client client, String table) throws Exception {
-        String[] dbTable = table.contains(".") ? table.split("\\.", 2) : new String[] {client.getDefaultDatabase(), table};
-        Map<String, String> types = new LinkedHashMap<>();
-        for (var r : client.queryAll("SELECT name, type FROM system.columns WHERE database = '"
-                + dbTable[0].replace("'", "\\'") + "' AND table = '" + dbTable[1].replace("'", "\\'")
-                + "' AND default_kind IN ('', 'DEFAULT') ORDER BY position")) {
-            types.put(r.getString(1), r.getString(2));
+    /** Runs one load job of {@code files} into {@code target}, and returns the rows loaded. */
+    private static long loadJob(BigQuery bigquery, BigQueryConfig config, TableId target, List<Field> schema,
+                                List<Path> files, boolean truncate) throws Exception {
+        WriteChannelConfiguration load = WriteChannelConfiguration.newBuilder(target)
+                .setFormatOptions(CsvOptions.newBuilder().setAllowQuotedNewLines(true).build())
+                // set here: WriteChannelConfiguration ignores the CsvOptions one
+                .setNullMarker(CsvConverter.NULL_MARKER)
+                .setCreateDisposition(JobInfo.CreateDisposition.CREATE_NEVER)
+                .setWriteDisposition(truncate ? JobInfo.WriteDisposition.WRITE_TRUNCATE
+                        : JobInfo.WriteDisposition.WRITE_APPEND)
+                .setMaxBadRecords(0)
+                .build();
+        JobId jobId = JobId.newBuilder().setLocation(config.location())
+                .setJob("faa_load_" + UUID.randomUUID().toString().replace("-", "")).build();
+        TableDataWriteChannel channel = bigquery.writer(jobId, load);
+        channel.setChunkSize(16 << 20);
+        // BigQuery recognises gzip by its header; the fastest level shrinks the
+        // upload about sixfold for much less CPU than parsing takes.
+        try (OutputStream upload = Channels.newOutputStream(channel);
+             GZIPOutputStream gz = new GZIPOutputStream(upload, 1 << 16) {
+                 {
+                     def.setLevel(Deflater.BEST_SPEED);
+                 }
+             }) {
+            for (Path file : files) {
+                convert(file, schema, gz);
+            }
         }
-        if (types.isEmpty()) {
-            throw new IllegalArgumentException("table " + table + " not found");
+        Job job = channel.getJob().waitFor();
+        if (job == null) {
+            throw new IOException("load job " + jobId.getJob() + " disappeared");
         }
-        return types;
+        if (job.getStatus().getError() != null) {
+            throw new IOException("load job " + jobId.getJob() + " into " + target.getTable() + " failed: "
+                    + job.getStatus().getError() + ", " + job.getStatus().getExecutionErrors());
+        }
+        return ((LoadStatistics) job.getStatistics()).getOutputRows();
     }
 
-    /** Loads one file; {@code types} non-null means --binary. */
-    private static long loadFile(Client client, String table, Path file, InsertSettings settings,
-                                 Map<String, String> types) throws Exception {
-        String name = file.getFileName().toString().toLowerCase();
-        try (InputStream raw = Files.newInputStream(file)) {
-            if (name.endsWith(".zip")) {
-                // e.g. BTS on-time downloads: one CSV inside each zip
-                long rows = 0;
-                try (ZipInputStream zip = new ZipInputStream(raw)) {
-                    ZipEntry entry;
-                    while ((entry = zip.getNextEntry()) != null) {
-                        if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".csv")) {
-                            rows += types == null
-                                    ? insert(client, table, new NonClosingInputStream(zip), settings)
-                                    : insertBinary(client, table, zip, settings, types);
-                        }
-                    }
+    /** Writes one file, or the CSV inside one zip, to {@code out} as {@link CsvConverter} output. */
+    private static void convert(Path file, List<Field> schema, OutputStream out) throws IOException {
+        try (InputStream in = open(file)) {
+            CsvConverter.CsvReader csv = new CsvConverter.CsvReader(in);
+            new CsvConverter(CsvConverter.readHeader(csv), schema).write(csv, out);
+        }
+    }
+
+    /**
+     * The partition, e.g. 202501, that the first row of {@code file} belongs
+     * to: its value of the partitioning column, truncated to the partitioning unit.
+     */
+    private static String partition(Path file, TimePartitioning partitioning) throws IOException {
+        try (InputStream in = open(file)) {
+            CsvConverter.CsvReader csv = new CsvConverter.CsvReader(in);
+            int column = CsvConverter.readHeader(csv).indexOf(partitioning.getField());
+            if (column < 0) {
+                throw new IOException(file + " has no column " + partitioning.getField());
+            }
+            String value = "";
+            boolean more = csv.hasMore();
+            for (int i = 0; more; i++) {
+                more = csv.next();
+                if (i == column) {
+                    value = csv.text();
+                    break;
                 }
-                return rows;
             }
-            InputStream in = name.endsWith(".gz") ? new GZIPInputStream(raw, 1 << 16) : raw;
-            return types == null ? insert(client, table, in, settings) : insertBinary(client, table, in, settings, types);
+            String date = value.replace("-", "");   // YYYYMMDD...
+            if (date.length() < 8) {
+                throw new IOException(file + ": cannot tell the partition from '" + value + "'");
+            }
+            return switch (partitioning.getType()) {
+                case YEAR -> date.substring(0, 4);
+                case MONTH -> date.substring(0, 6);
+                case DAY -> date.substring(0, 8);
+                default -> throw new IOException("--replace-partition: " + partitioning.getType() + " partitions are not supported");
+            };
         }
     }
 
-    private static long insertBinary(Client client, String table, InputStream in, InsertSettings settings,
-                                     Map<String, String> types) throws Exception {
-        CsvNative.CsvReader csv = new CsvNative.CsvReader(in);
-        CsvNative converter = new CsvNative(CsvNative.readHeader(csv), types);
-        // The client's own request compression is slow (see ClickHouseConfig),
-        // so the data is gzipped here, at the fastest level.
-        InsertSettings gzipped = new InsertSettings(settings.getAllSettings()).appCompressedData(true, "gzip");
-        DataStreamWriter writer = new DataStreamWriter() {
-            @Override
-            public void onOutput(OutputStream out) throws IOException {
-                GZIPOutputStream gz = new GZIPOutputStream(out, 1 << 16) {
-                    {
-                        def.setLevel(Deflater.BEST_SPEED);
-                    }
-                };
-                converter.write(csv, gz);
-                gz.finish();
-            }
-
-            @Override
-            public void onRetry() throws IOException {
-                throw new IOException("insert failed part way through; cannot resend a stream");
-            }
-        };
-        try (InsertResponse response = client.insert(table, writer, ClickHouseFormat.Native, gzipped)
-                .get(TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
-            return response.getWrittenRows();
+    /** A CSV file's contents: plain, gzipped, or the first .csv inside a zip (as BTS publishes them). */
+    private static InputStream open(Path file) throws IOException {
+        String name = file.getFileName().toString().toLowerCase();
+        InputStream raw = Files.newInputStream(file);
+        if (name.endsWith(".gz")) {
+            return new GZIPInputStream(raw, 1 << 16);
         }
-    }
-
-    private static long insert(Client client, String table, InputStream in, InsertSettings settings) throws Exception {
-        try (InsertResponse response = client.insert(table, in, ClickHouseFormat.CSVWithNames, settings)
-                .get(TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
-            return response.getWrittenRows();
+        if (name.endsWith(".zip")) {
+            ZipInputStream zip = new ZipInputStream(raw);
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".csv")) {
+                    return zip;
+                }
+            }
+            zip.close();
+            throw new IOException(file + " has no .csv inside");
         }
+        return raw;
     }
 
     private static List<Path> expand(List<String> paths) throws IOException {
@@ -288,94 +324,5 @@ public class Loader {
             }
         }
         return files;
-    }
-
-    private static InputStream open(Path file) throws IOException {
-        InputStream raw = Files.newInputStream(file);
-        return file.getFileName().toString().toLowerCase().endsWith(".gz") ? new GZIPInputStream(raw, 1 << 16) : raw;
-    }
-
-    /**
-     * Several CSV files read as one: the first file's header line, then every
-     * file's data lines. Files are opened one at a time, as they are reached.
-     */
-    private static final class ConcatenatedCsv extends InputStream {
-        private final Iterator<Path> files;
-        private byte[] header;
-        private Path current;
-        private InputStream in = InputStream.nullInputStream();
-        private int last = '\n';
-
-        ConcatenatedCsv(List<Path> files) {
-            this.files = files.iterator();
-        }
-
-        @Override
-        public int read() throws IOException {
-            byte[] b = new byte[1];
-            return read(b, 0, 1) < 0 ? -1 : b[0] & 0xff;
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            if (len == 0) {
-                return 0;
-            }
-            while (true) {
-                int n = in.read(b, off, len);
-                if (n > 0) {
-                    last = b[off + n - 1];
-                    return n;
-                }
-                if (last != '\n') {
-                    // the file just finished had no final newline
-                    last = '\n';
-                    b[off] = '\n';
-                    return 1;
-                }
-                in.close();
-                if (!files.hasNext()) {
-                    return -1;
-                }
-                current = files.next();
-                in = open(current);
-                byte[] line = readLine(in);
-                if (header == null) {
-                    header = line;
-                    in = new SequenceInputStream(new ByteArrayInputStream(line), in);
-                } else if (!Arrays.equals(line, header)) {
-                    throw new IOException(current + ": header differs from the first file's");
-                }
-            }
-        }
-
-        private static byte[] readLine(InputStream in) throws IOException {
-            ByteArrayOutputStream line = new ByteArrayOutputStream();
-            int c;
-            while ((c = in.read()) >= 0) {
-                line.write(c);
-                if (c == '\n') {
-                    break;
-                }
-            }
-            return line.toByteArray();
-        }
-
-        @Override
-        public void close() throws IOException {
-            in.close();
-        }
-    }
-
-    /** Stops the client from closing a ZipInputStream between entries. */
-    private static final class NonClosingInputStream extends FilterInputStream {
-        NonClosingInputStream(InputStream in) {
-            super(in);
-        }
-
-        @Override
-        public void close() {
-            // intentionally empty
-        }
     }
 }

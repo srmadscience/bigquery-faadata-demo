@@ -21,10 +21,16 @@
         "label": "Airline",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
-        "query": "SELECT DISTINCT Reporting_Airline FROM faa.flight_weather ORDER BY 1",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT Reporting_Airline FROM faa.flight_weather ORDER BY 1"
+        },
         "definition": "SELECT DISTINCT Reporting_Airline FROM faa.flight_weather ORDER BY 1",
         "refresh": 1,
         "multi": true,
@@ -46,10 +52,16 @@
         "label": "Origin airport",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
-        "query": "SELECT DISTINCT Origin FROM faa.flight_weather ORDER BY 1",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT Origin FROM faa.flight_weather ORDER BY 1"
+        },
         "definition": "SELECT DISTINCT Origin FROM faa.flight_weather ORDER BY 1",
         "refresh": 1,
         "multi": true,
@@ -103,8 +115,8 @@
       "title": "In IFR/LIFR",
       "description": "Share of flights whose origin was below 1,000 ft ceiling or 3 mi visibility at departure time.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -116,13 +128,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * countIf(o_category IN ('IFR', 'LIFR')) / countIf(o_category != '') FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * SAFE_DIVIDE(COUNTIF(o_category IN ('IFR', 'LIFR')), COUNTIF(o_category != '')) AS value FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -164,8 +176,8 @@
       "title": "Late, VFR",
       "description": "Departed 15+ minutes late, in good weather (VFR) at the origin.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 4,
@@ -177,13 +189,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0) FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category = 'VFR'"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)) AS value FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category = 'VFR'"
         }
       ],
       "fieldConfig": {
@@ -225,8 +237,8 @@
       "title": "Late, IFR/LIFR",
       "description": "Departed 15+ minutes late, in poor weather (IFR or LIFR) at the origin.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 8,
@@ -238,13 +250,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0) FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category IN ('IFR', 'LIFR')"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)) AS value FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category IN ('IFR', 'LIFR')"
         }
       ],
       "fieldConfig": {
@@ -286,8 +298,8 @@
       "title": "Cxl, VFR",
       "description": "Cancellation rate when the origin was VFR.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -299,13 +311,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * avg(Cancelled) FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category = 'VFR'"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * AVG(Cancelled) AS value FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category = 'VFR'"
         }
       ],
       "fieldConfig": {
@@ -347,8 +359,8 @@
       "title": "Cxl, IFR/LIFR",
       "description": "Cancellation rate when the origin was IFR or LIFR.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 16,
@@ -360,13 +372,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 100 * avg(Cancelled) FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category IN ('IFR', 'LIFR')"
+          "rawQuery": true,
+          "rawSql": "SELECT 100 * AVG(Cancelled) AS value FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category IN ('IFR', 'LIFR')"
         }
       ],
       "fieldConfig": {
@@ -408,8 +420,8 @@
       "title": "Weather cxl",
       "description": "Cancellations the airline attributed to weather (BTS code B).",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 20,
@@ -421,13 +433,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT countIf(Cancelled = 1 AND CancellationCode = 'B') FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
+          "rawQuery": true,
+          "rawSql": "SELECT COUNTIF(Cancelled = 1 AND CancellationCode = 'B') AS value FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})"
         }
       ],
       "fieldConfig": {
@@ -469,8 +481,8 @@
       "title": "By flight category at origin",
       "description": "VFR: ceiling above 3,000 ft and visibility over 5 mi. MVFR: 1,000-3,000 ft or 3-5 mi. IFR: 500-999 ft or 1-3 mi. LIFR: below 500 ft or under 1 mi. Measured at the origin's last report before scheduled departure.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -482,13 +494,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT o_category AS Category, round(100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0), 1) AS `% departing 15+ min late`,\n       round(100 * avg(Cancelled), 2) AS `% cancelled`,\n       round(avg(DepDelay), 1) AS `Avg departure delay`,\n       count() AS Flights\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category != ''\nGROUP BY Category ORDER BY indexOf(['VFR', 'MVFR', 'IFR', 'LIFR'], Category)"
+          "rawQuery": true,
+          "rawSql": "SELECT o_category AS Category, ROUND(100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)), 1) AS `% departing 15+ min late`,\n       ROUND(100 * AVG(Cancelled), 2) AS `% cancelled`,\n       ROUND(AVG(DepDelay), 1) AS `Avg departure delay`,\n       COUNT(*) AS Flights\nFROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_category != ''\nGROUP BY Category ORDER BY CASE Category WHEN 'VFR' THEN 0 WHEN 'MVFR' THEN 1 WHEN 'IFR' THEN 2 WHEN 'LIFR' THEN 3 END"
         }
       ],
       "fieldConfig": {
@@ -585,8 +597,8 @@
       "title": "By present weather at origin",
       "description": "Most significant weather in the origin's report: thunderstorm > freezing precipitation > snow/ice > fog > rain > none.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -598,13 +610,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT o_wx AS Weather, round(100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0), 1) AS `% departing 15+ min late`,\n       round(100 * avg(Cancelled), 2) AS `% cancelled`,\n       round(avg(DepDelay), 1) AS `Avg departure delay`,\n       count() AS Flights\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_wx != ''\nGROUP BY Weather ORDER BY indexOf(['None', 'Rain', 'Fog', 'Snow/ice', 'Freezing', 'Thunderstorm'], Weather)"
+          "rawQuery": true,
+          "rawSql": "SELECT o_wx AS Weather, ROUND(100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)), 1) AS `% departing 15+ min late`,\n       ROUND(100 * AVG(Cancelled), 2) AS `% cancelled`,\n       ROUND(AVG(DepDelay), 1) AS `Avg departure delay`,\n       COUNT(*) AS Flights\nFROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_wx != ''\nGROUP BY Weather ORDER BY CASE Weather WHEN 'None' THEN 0 WHEN 'Rain' THEN 1 WHEN 'Fog' THEN 2 WHEN 'Snow/ice' THEN 3 WHEN 'Freezing' THEN 4 WHEN 'Thunderstorm' THEN 5 END"
         }
       ],
       "fieldConfig": {
@@ -701,8 +713,8 @@
       "title": "By wind at origin",
       "description": "Sustained wind or gust, whichever is higher, in knots.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -714,13 +726,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT multiIf(w < 10, '0-9 kt', w < 20, '10-19 kt', w < 30, '20-29 kt', w < 40, '30-39 kt', '40+ kt') AS Wind,\n       round(100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0), 1) AS `% departing 15+ min late`,\n       round(100 * avg(Cancelled), 2) AS `% cancelled`,\n       round(avg(DepDelay), 1) AS `Avg departure delay`,\n       count() AS Flights\nFROM (SELECT *, greatest(ifNull(o_sknt, 0), ifNull(o_gust, 0)) AS w\n      FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_sknt IS NOT NULL)\nGROUP BY Wind ORDER BY min(w)"
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN w < 10 THEN '0-9 kt' WHEN w < 20 THEN '10-19 kt' WHEN w < 30 THEN '20-29 kt' WHEN w < 40 THEN '30-39 kt' ELSE '40+ kt' END AS Wind, ROUND(100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)), 1) AS `% departing 15+ min late`,\n       ROUND(100 * AVG(Cancelled), 2) AS `% cancelled`,\n       ROUND(AVG(DepDelay), 1) AS `Avg departure delay`,\n       COUNT(*) AS Flights\nFROM (SELECT *, GREATEST(IFNULL(o_sknt, 0), IFNULL(o_gust, 0)) AS w\n      FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_sknt IS NOT NULL)\nGROUP BY Wind ORDER BY MIN(w)"
         }
       ],
       "fieldConfig": {
@@ -817,8 +829,8 @@
       "title": "By visibility at origin",
       "description": "Surface visibility in statute miles.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 8,
@@ -830,13 +842,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT multiIf(o_vsby < 0.5, '< 1/2 mi', o_vsby < 1, '1/2-1 mi', o_vsby < 3, '1-3 mi', o_vsby < 6, '3-5 mi',\n               o_vsby < 10, '6-9 mi', '10+ mi') AS Visibility,\n       round(100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0), 1) AS `% departing 15+ min late`,\n       round(100 * avg(Cancelled), 2) AS `% cancelled`,\n       round(avg(DepDelay), 1) AS `Avg departure delay`,\n       count() AS Flights\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_vsby IS NOT NULL\nGROUP BY Visibility ORDER BY min(o_vsby)"
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN o_vsby < 0.5 THEN '< 1/2 mi' WHEN o_vsby < 1 THEN '1/2-1 mi' WHEN o_vsby < 3 THEN '1-3 mi'\n            WHEN o_vsby < 6 THEN '3-5 mi' WHEN o_vsby < 10 THEN '6-9 mi' ELSE '10+ mi' END AS Visibility, ROUND(100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)), 1) AS `% departing 15+ min late`,\n       ROUND(100 * AVG(Cancelled), 2) AS `% cancelled`,\n       ROUND(AVG(DepDelay), 1) AS `Avg departure delay`,\n       COUNT(*) AS Flights\nFROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_vsby IS NOT NULL\nGROUP BY Visibility ORDER BY MIN(o_vsby)"
         }
       ],
       "fieldConfig": {
@@ -933,8 +945,8 @@
       "title": "By temperature at origin",
       "description": "Below freezing usually means de-icing; extreme heat can limit aircraft performance.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 16,
@@ -946,13 +958,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT multiIf(o_tmpf < 10, '< 10°F', o_tmpf < 20, '10-19°F', o_tmpf < 32, '20-31°F', o_tmpf < 50, '32-49°F',\n               o_tmpf < 70, '50-69°F', o_tmpf < 90, '70-89°F', '90+°F') AS Temperature,\n       round(100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0), 1) AS `% departing 15+ min late`,\n       round(100 * avg(Cancelled), 2) AS `% cancelled`,\n       round(avg(DepDelay), 1) AS `Avg departure delay`,\n       count() AS Flights\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_tmpf IS NOT NULL\nGROUP BY Temperature ORDER BY min(o_tmpf)"
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN o_tmpf < 10 THEN '< 10°F' WHEN o_tmpf < 20 THEN '10-19°F' WHEN o_tmpf < 32 THEN '20-31°F'\n            WHEN o_tmpf < 50 THEN '32-49°F' WHEN o_tmpf < 70 THEN '50-69°F' WHEN o_tmpf < 90 THEN '70-89°F' ELSE '90+°F' END AS Temperature, ROUND(100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)), 1) AS `% departing 15+ min late`,\n       ROUND(100 * AVG(Cancelled), 2) AS `% cancelled`,\n       ROUND(AVG(DepDelay), 1) AS `Avg departure delay`,\n       COUNT(*) AS Flights\nFROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND o_tmpf IS NOT NULL\nGROUP BY Temperature ORDER BY MIN(o_tmpf)"
         }
       ],
       "fieldConfig": {
@@ -1049,8 +1061,8 @@
       "title": "Poor weather and late departures by day",
       "description": "Daily share of departures in poor weather against late departures and cancellations.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1062,13 +1074,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toDateTime(FlightDate) AS time,\n       100 * countIf(o_category IN ('IFR', 'LIFR')) / countIf(o_category != '') AS `% departures in IFR/LIFR`,\n       100 * countIf(DepDel15 = 1) / countIf(Cancelled = 0) AS `% departing 15+ min late`,\n       100 * avg(Cancelled) AS `% cancelled`\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
+          "rawQuery": true,
+          "rawSql": "SELECT TIMESTAMP(FlightDate) AS time,\n       100 * SAFE_DIVIDE(COUNTIF(o_category IN ('IFR', 'LIFR')), COUNTIF(o_category != '')) AS `departures_in_IFR_LIFR`,\n       100 * SAFE_DIVIDE(COUNTIF(DepDel15 = 1), COUNTIF(Cancelled = 0)) AS `% departing 15+ min late`,\n       100 * AVG(Cancelled) AS `% cancelled`\nFROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\nGROUP BY time ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -1141,7 +1153,17 @@
           "mode": "multi"
         }
       },
-      "id": 13
+      "id": 13,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "departures_in_IFR_LIFR": "% departures in IFR/LIFR"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "row",
@@ -1161,8 +1183,8 @@
       "title": "By flight category at destination",
       "description": "Destination weather at the scheduled arrival time. Poor arrival weather cuts airport arrival rates, so flights are held at their origin (ground delay programmes) as well as diverted.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1174,13 +1196,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT d_category AS Category, round(100 * countIf(ArrDel15 = 1) / countIf(Cancelled = 0 AND Diverted = 0), 1) AS `% arriving 15+ min late`,\n       round(100 * avg(Diverted), 2) AS `% diverted`,\n       round(100 * avg(Cancelled), 2) AS `% cancelled`,\n       round(avg(ArrDelay), 1) AS `Avg arrival delay`,\n       count() AS Flights\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND d_category != ''\nGROUP BY Category ORDER BY indexOf(['VFR', 'MVFR', 'IFR', 'LIFR'], Category)"
+          "rawQuery": true,
+          "rawSql": "SELECT d_category AS Category, ROUND(100 * SAFE_DIVIDE(COUNTIF(ArrDel15 = 1), COUNTIF(Cancelled = 0 AND Diverted = 0)), 1) AS `% arriving 15+ min late`,\n       ROUND(100 * AVG(Diverted), 2) AS `% diverted`,\n       ROUND(100 * AVG(Cancelled), 2) AS `% cancelled`,\n       ROUND(AVG(ArrDelay), 1) AS `Avg arrival delay`,\n       COUNT(*) AS Flights\nFROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND d_category != ''\nGROUP BY Category ORDER BY CASE Category WHEN 'VFR' THEN 0 WHEN 'MVFR' THEN 1 WHEN 'IFR' THEN 2 WHEN 'LIFR' THEN 3 END"
         }
       ],
       "fieldConfig": {
@@ -1292,8 +1314,8 @@
       "title": "By present weather at destination",
       "description": "",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -1305,13 +1327,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT d_wx AS Weather, round(100 * countIf(ArrDel15 = 1) / countIf(Cancelled = 0 AND Diverted = 0), 1) AS `% arriving 15+ min late`,\n       round(100 * avg(Diverted), 2) AS `% diverted`,\n       round(100 * avg(Cancelled), 2) AS `% cancelled`,\n       round(avg(ArrDelay), 1) AS `Avg arrival delay`,\n       count() AS Flights\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND d_wx != ''\nGROUP BY Weather ORDER BY indexOf(['None', 'Rain', 'Fog', 'Snow/ice', 'Freezing', 'Thunderstorm'], Weather)"
+          "rawQuery": true,
+          "rawSql": "SELECT d_wx AS Weather, ROUND(100 * SAFE_DIVIDE(COUNTIF(ArrDel15 = 1), COUNTIF(Cancelled = 0 AND Diverted = 0)), 1) AS `% arriving 15+ min late`,\n       ROUND(100 * AVG(Diverted), 2) AS `% diverted`,\n       ROUND(100 * AVG(Cancelled), 2) AS `% cancelled`,\n       ROUND(AVG(ArrDelay), 1) AS `Avg arrival delay`,\n       COUNT(*) AS Flights\nFROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote}) AND d_wx != ''\nGROUP BY Weather ORDER BY CASE Weather WHEN 'None' THEN 0 WHEN 'Rain' THEN 1 WHEN 'Fog' THEN 2 WHEN 'Snow/ice' THEN 3 WHEN 'Freezing' THEN 4 WHEN 'Thunderstorm' THEN 5 END"
         }
       ],
       "fieldConfig": {
@@ -1436,8 +1458,8 @@
       "title": "Airport-days with the most cancellations",
       "description": "Airport-days with 50+ scheduled departures, ranked by cancellation rate, with the weather observed at departure times that day. Weather lists the most common significant conditions.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1449,13 +1471,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toString(FlightDate) AS Date, Origin AS Airport,\n       count() AS Departures,\n       round(100 * avg(Cancelled), 1) AS `Cancelled %`,\n       round(avg(DepDelay), 0) AS `Avg dep delay`,\n       round(100 * countIf(o_category IN ('IFR', 'LIFR')) / countIf(o_category != ''), 0) AS `IFR/LIFR %`,\n       arrayStringConcat(arrayFilter(x -> x NOT IN ('None', ''), topK(3)(o_wx)), ', ') AS Weather,\n       round(min(o_vsby), 2) AS `Min vis (mi)`,\n       max(greatest(ifNull(o_sknt, 0), ifNull(o_gust, 0))) AS `Max wind (kt)`,\n       round(min(o_tmpf), 0) AS `Min temp (°F)`,\n       countIf(Cancelled = 1 AND CancellationCode = 'B') AS `Weather cxl`\nFROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\n  -- rank airport-days cheaply first, then summarise the weather for the top 100 only\n  AND (FlightDate, Origin) IN (\n    SELECT FlightDate, Origin FROM faa.flight_weather WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\n    GROUP BY FlightDate, Origin HAVING count() >= 50\n    ORDER BY avg(Cancelled) DESC, count() DESC\n    LIMIT 100)\nGROUP BY FlightDate, Origin\nORDER BY `Cancelled %` DESC, Departures DESC"
+          "rawQuery": true,
+          "rawSql": "-- rank airport-days cheaply first, then summarise the weather for the top 100 only\nWITH top AS (\n    SELECT FlightDate, Origin FROM faa.flight_weather WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\n    GROUP BY FlightDate, Origin HAVING COUNT(*) >= 50\n    ORDER BY AVG(Cancelled) DESC, COUNT(*) DESC\n    LIMIT 100\n),\ndays AS (\n    SELECT FlightDate, Origin, COUNT(*) AS departures, AVG(Cancelled) AS cancelled, AVG(DepDelay) AS dep_delay,\n           SAFE_DIVIDE(COUNTIF(o_category IN ('IFR', 'LIFR')), COUNTIF(o_category != '')) AS ifr,\n           APPROX_TOP_COUNT(o_wx, 3) AS top_wx, MIN(o_vsby) AS vsby,\n           MAX(GREATEST(IFNULL(o_sknt, 0), IFNULL(o_gust, 0))) AS wind, MIN(o_tmpf) AS tmpf,\n           COUNTIF(Cancelled = 1 AND CancellationCode = 'B') AS weather_cxl\n    FROM faa.flight_weather INNER JOIN top USING (FlightDate, Origin)\n    WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND Origin IN (${origin:singlequote})\n    GROUP BY FlightDate, Origin\n)\nSELECT CAST(FlightDate AS STRING) AS Date, Origin AS Airport,\n       departures AS Departures,\n       ROUND(100 * cancelled, 1) AS `Cancelled %`,\n       ROUND(dep_delay, 0) AS `Avg dep delay`,\n       ROUND(100 * ifr, 0) AS `IFR_LIFR`,\n       ARRAY_TO_STRING(ARRAY(SELECT t.value FROM UNNEST(top_wx) AS t WHERE t.value NOT IN ('None', '')), ', ') AS Weather,\n       ROUND(vsby, 2) AS `Min_vis_mi`,\n       wind AS `Max_wind_kt`,\n       ROUND(tmpf, 0) AS `Min_temp_F`,\n       weather_cxl AS `Weather cxl`\nFROM days\nORDER BY `Cancelled %` DESC, Departures DESC"
         }
       ],
       "fieldConfig": {
@@ -1536,7 +1558,20 @@
         "showHeader": true,
         "cellHeight": "sm"
       },
-      "id": 18
+      "id": 18,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Max_wind_kt": "Max wind (kt)",
+              "Min_temp_F": "Min temp (°F)",
+              "Min_vis_mi": "Min vis (mi)",
+              "IFR_LIFR": "IFR/LIFR %"
+            }
+          }
+        }
+      ]
     }
   ],
   "schemaVersion": 41,

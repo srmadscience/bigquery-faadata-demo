@@ -21,27 +21,39 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ie.rolfe</groupId>
-    <artifactId>clickhouse-faadata-demo</artifactId>
+    <artifactId>bigquery-faadata-demo</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>clickhouse-faadata-demo</name>
-    <description>Loads FAA flight and weather data into ClickHouse for analysis in Grafana</description>
+    <name>bigquery-faadata-demo</name>
+    <description>Loads FAA flight and weather data into Google BigQuery for analysis in Grafana</description>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <clickhouse.version>0.10.0</clickhouse.version>
+        <google-cloud-bom.version>26.90.0</google-cloud-bom.version>
         <slf4j.version>2.0.16</slf4j.version>
         <junit.version>5.11.4</junit.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Consistent versions of the Google Cloud client libraries -->
+            <dependency>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>libraries-bom</artifactId>
+                <version>${google-cloud-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
-        <!-- ClickHouse Java client (v2): HTTP protocol, streaming inserts -->
+        <!-- BigQuery client: load jobs (resumable uploads) and queries -->
         <dependency>
-            <groupId>com.clickhouse</groupId>
-            <artifactId>client-v2</artifactId>
-            <version>${clickhouse.version}</version>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-bigquery</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -70,8 +82,8 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
             </plugin>
-            <!-- Builds target/clickhouse-faadata-demo-<ver>-all.jar so the loader can be
-                 copied to another machine (e.g. the ClickHouse server) and run next to the data. -->
+            <!-- Builds target/bigquery-faadata-demo-<ver>-all.jar so the loader can be
+                 copied to another machine and run next to the data. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>

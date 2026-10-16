@@ -24,17 +24,15 @@ SELECT
     s.station   AS station,
     -- IEM lists the Virgin Islands as Atlantic/Bermuda, which observes DST;
     -- the USVI does not, so that would be an hour off for half the year.
-    if(s.network = 'VI_ASOS', 'America/St_Thomas', s.tzname) AS tzname,
+    IF(s.network = 'VI_ASOS', 'America/St_Thomas', s.tzname) AS tzname,
     a.name      AS airport_name,
     a.latitude_deg  AS lat,
     a.longitude_deg AS lon
 FROM
 (
-    SELECT
-        iata_code, name, latitude_deg, longitude_deg,
-        arrayJoin(arrayFilter(c -> c != '', [local_code, icao_code, gps_code, ident])) AS code,
-        -- prefer open airports with scheduled service when an IATA code is reused
-        (type = 'closed', scheduled_service != 'yes') AS rank
+    SELECT ap.iata_code, ap.name, ap.latitude_deg, ap.longitude_deg, code, pos,
+           -- prefer open airports with scheduled service when an IATA code is reused
+           ap.type = 'closed' AS closed, ap.scheduled_service != 'yes' AS unscheduled
     FROM
     (
         SELECT * FROM faa.airports WHERE iata_code != ''
@@ -48,8 +46,10 @@ FROM
         SELECT ap.* REPLACE (cl.bts_code AS iata_code, cl.station AS local_code)
         FROM faa.airports AS ap
         INNER JOIN faa.airport_closed AS cl ON ap.ident = cl.ident
-    )
+    ) AS ap,
+    UNNEST([ap.local_code, ap.icao_code, ap.gps_code, ap.ident]) AS code WITH OFFSET AS pos
+    WHERE code != ''
 ) AS a
 INNER JOIN faa.stations AS s ON s.station = a.code
-ORDER BY a.rank
-LIMIT 1 BY a.iata_code;
+WHERE TRUE
+QUALIFY ROW_NUMBER() OVER (PARTITION BY a.iata_code ORDER BY a.closed, a.unscheduled, a.pos) = 1;

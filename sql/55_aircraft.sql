@@ -24,7 +24,7 @@ SELECT
     r.serial_number,
     m.manufacturer,
     m.model,
-    concat(m.manufacturer, ' ', m.model) AS make_model,  -- e.g. "BOEING 737-7H4"
+    CONCAT(m.manufacturer, ' ', m.model) AS make_model,  -- e.g. "BOEING 737-7H4"
     r.year_mfr,
     m.seats,
     m.engines,
@@ -34,14 +34,15 @@ SELECT
 FROM
 (
     SELECT tail, 1 AS registered, serial_number, mfr_mdl_code, year_mfr, registrant,
-           air_worth_date, CAST(NULL AS Nullable(Date32)) AS cancel_date
+           air_worth_date, CAST(NULL AS DATE) AS cancel_date
     FROM faa.registry_master
     UNION ALL
-    SELECT tail, 0 AS registered, serial_number, mfr_mdl_code, year_mfr, registrant,
-           air_worth_date, cancel_date
-    FROM faa.registry_dereg
-    WHERE tail NOT IN (SELECT tail FROM faa.registry_master)
-    ORDER BY cancel_date DESC
-    LIMIT 1 BY tail
+    SELECT * FROM (
+        SELECT tail, 0 AS registered, serial_number, mfr_mdl_code, year_mfr, registrant,
+               air_worth_date, cancel_date
+        FROM faa.registry_dereg
+        WHERE tail NOT IN (SELECT tail FROM faa.registry_master)
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY tail ORDER BY cancel_date DESC) = 1
+    )
 ) AS r
 LEFT JOIN faa.registry_models AS m ON m.code = r.mfr_mdl_code;

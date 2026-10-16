@@ -37,9 +37,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.query.QueryResponse;
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.FieldValueList;
+import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.QueryParameterValue;
+import com.google.cloud.bigquery.TableResult;
 
 /**
  * Query performance test: issues randomly generated queries asynchronously and
@@ -55,15 +57,19 @@ import com.clickhouse.client.api.query.QueryResponse;
  * was due to start, so time spent waiting for a free thread counts: when the
  * server falls behind, latencies grow rather than the rate quietly dropping.
  * Without --rate, N threads each issue queries back to back, which measures the
- * most the server can do. A query that receives nothing for --timeout seconds
- * (default 60) counts as an error: a connection whose server end has gone can
- * otherwise wait for ever. --log writes one line per query; --results appends a
+ * most BigQuery will do for one client. A query still running after --timeout
+ * seconds (default 60) is cancelled by BigQuery and counts as an error. --log writes one line per query; --results appends a
  * summary line to the test results file.
+ * <p>
+ * Queries bypass BigQuery's result cache, so each is really run, and use
+ * BigQuery's short query mode (no job is created unless the query needs one),
+ * which saves a round trip or two per query. Each query is billed for at least
+ * 10 MB per table it reads.
  */
 public final class QueryBench {
 
     /** One query to run, and how to describe it in the log. */
-    record Query(String sql, Map<String, Object> params, String description, long days) {
+    record Query(String sql, Map<String, QueryParameterValue> params, String description, long days) {
     }
 
     /** A workload makes random queries; it may read what it needs from the server first. */
@@ -71,19 +77,24 @@ public final class QueryBench {
         Query next(Random random);
     }
 
-    private static final Map<String, Function<Client, Workload>> WORKLOADS = Map.of(
+    private static final Map<String, Function<Context, Workload>> WORKLOADS = Map.of(
             "flight-history", FlightHistory::new);
+
+    /** What a workload needs to prepare itself: the client, and how to run SQL. */
+    record Context(BigQuery bigquery, BigQueryConfig config) {
+        List<FieldValueList> queryAll(String sql) throws InterruptedException {
+            List<FieldValueList> rows = new ArrayList<>();
+            bigquery.query(QueryJobConfiguration.of(config.sql(sql))).iterateAll().forEach(rows::add);
+            return rows;
+        }
+    }
 
     /**
      * Every flight of one aircraft, picked at random from all those with
      * flights, between two random dates from 1 day to 10 years apart. Range
      * lengths are spread evenly on a log scale, so days, weeks, months and
-     * years are equally likely.
-     * <p>
-     * optimize_read_in_order is off because ontime is itself sorted by date:
-     * with it on, ORDER BY FlightDate makes ClickHouse read the table in order
-     * and pass over the by_tail projection (see sql/16_ontime_by_tail.sql),
-     * scanning every flight in the range instead of one aircraft's.
+     * years are equally likely. faa.ontime is clustered by tail, so BigQuery
+     * reads only that aircraft's blocks of each month in the range.
      */
     static final class FlightHistory implements Workload {
         static final int MAX_DAYS = 3653;
@@ -92,25 +103,32 @@ public final class QueryBench {
                        Origin, Dest, CRSDepTime, DepTime, DepDelay, CRSArrTime, ArrTime, ArrDelay,
                        Cancelled, CancellationCode, Diverted, Distance
                 FROM faa.ontime
-                WHERE tail = {tail:String} AND FlightDate BETWEEN {from:Date} AND {to:Date}
-                ORDER BY FlightDate, CRSDepTime
-                SETTINGS optimize_read_in_order = 0""";
+                WHERE tail = @tail AND FlightDate BETWEEN @from AND @to
+                ORDER BY FlightDate, CRSDepTime""";
 
         private final List<String> tails;
         private final LocalDate first;
         private final LocalDate last;
 
-        FlightHistory(Client client) {
-            // Real registrations only: not the empty tail of unassigned flights,
-            // nor placeholders such as '#N/A'.
-            tails = client.queryAll("SELECT DISTINCT tail FROM faa.tail_day WHERE match(tail, '^N[0-9][0-9A-Z]*$') ORDER BY tail")
-                    .stream().map(r -> r.getString(1)).toList();
-            if (tails.isEmpty()) {
-                throw new IllegalStateException("faa.tail_day is empty: load flights and run build-tail-day.sh first");
+        private final BigQueryConfig config;
+
+        FlightHistory(Context context) {
+            try {
+                // Real registrations only: not the empty tail of unassigned flights,
+                // nor placeholders such as '#N/A'.
+                tails = context.queryAll("SELECT DISTINCT tail FROM faa.tail_day WHERE REGEXP_CONTAINS(tail, r'^N[0-9][0-9A-Z]*$') ORDER BY tail")
+                        .stream().map(r -> r.get(0).getStringValue()).toList();
+                if (tails.isEmpty()) {
+                    throw new IllegalStateException("faa.tail_day is empty: load flights and run build-tail-day.sh first");
+                }
+                var range = context.queryAll("SELECT MIN(FlightDate), MAX(FlightDate) FROM faa.tail_day").get(0);
+                first = LocalDate.parse(range.get(0).getStringValue());
+                last = LocalDate.parse(range.get(1).getStringValue());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
             }
-            var range = client.queryAll("SELECT min(FlightDate), max(FlightDate) FROM faa.tail_day").get(0);
-            first = range.getLocalDate(1);
-            last = range.getLocalDate(2);
+            config = context.config();
             System.out.printf("flight-history: %,d aircraft, flights %s to %s%n", tails.size(), first, last);
         }
 
@@ -118,6 +136,7 @@ public final class QueryBench {
             this.tails = tails;
             this.first = first;
             this.last = last;
+            this.config = new BigQueryConfig("", BigQueryConfig.SQL_DATASET, "US", "");
         }
 
         @Override
@@ -127,7 +146,8 @@ public final class QueryBench {
             long days = Math.min(span, Math.round(Math.exp(random.nextDouble() * Math.log(MAX_DAYS))));
             LocalDate from = first.plusDays((long) (random.nextDouble() * (span - days + 1)));
             LocalDate to = from.plusDays(days - 1);
-            return new Query(SQL, Map.of("tail", tail, "from", from.toString(), "to", to.toString()),
+            return new Query(config.sql(SQL), Map.of("tail", QueryParameterValue.string(tail),
+                    "from", QueryParameterValue.date(from.toString()), "to", QueryParameterValue.date(to.toString())),
                     tail + "," + from + "," + to, days);
         }
     }
@@ -143,7 +163,7 @@ public final class QueryBench {
         }
     }
 
-    public static void run(ClickHouseConfig config, List<String> args) throws Exception {
+    public static void run(BigQueryConfig config, List<String> args) throws Exception {
         if (args.isEmpty() || !WORKLOADS.containsKey(args.get(0))) {
             throw new IllegalArgumentException("workload must be one of " + WORKLOADS.keySet());
         }
@@ -174,25 +194,22 @@ public final class QueryBench {
             i++;
         }
 
-        try (Client client = config.clientBuilder()
-                .setMaxConnections(threads)
-                .setSocketTimeout(timeout, ChronoUnit.SECONDS)
-                .build()) {
-            run(client, workloadName, rate, threads, duration, seed, log, results, commit, comment);
-        }
+        run(new Context(config.newClient(), config), workloadName, rate, threads, duration, timeout, seed, log, results,
+                commit, comment);
     }
 
-    private static void run(Client client, String workloadName, double rate, int threads, int duration, long seed,
-            Path log, Path results, String commit, String comment) throws Exception {
-        Workload workload = WORKLOADS.get(workloadName).apply(client);
-        String version = client.queryAll("SELECT version()").get(0).getString(1);
+    private static void run(Context context, String workloadName, double rate, int threads, int duration,
+            int timeout, long seed, Path log, Path results, String commit, String comment) throws Exception {
+        Workload workload = WORKLOADS.get(workloadName).apply(context);
+        BigQuery client = context.bigquery();
+        String version = "BigQuery " + context.config().location();
         String runStart = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"));
         System.out.printf("%s for %d s, %s, %d threads, seed %d%n", workloadName, duration,
                 rate > 0 ? rate + " queries/s" : "back to back", threads, seed);
 
         List<Result> done = rate > 0
-                ? openLoop(client, workload, new Random(seed), rate, threads, duration)
-                : closedLoop(client, workload, seed, threads, duration);
+                ? openLoop(client, workload, new Random(seed), rate, threads, duration, timeout)
+                : closedLoop(client, workload, seed, threads, duration, timeout);
         done.sort((a, b) -> Long.compare(a.due(), b.due()));
 
         if (log != null) {
@@ -204,7 +221,7 @@ public final class QueryBench {
             try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(results,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND))) {
                 if (fresh) {
-                    out.println("run_start,git_commit,clickhouse_version,workload,rate,threads,seconds,"
+                    out.println("run_start,git_commit,server,workload,rate,threads,seconds,"
                             + "queries,errors,qps,p50_ms,p90_ms,p99_ms,max_ms,comment");
                 }
                 out.printf(Locale.ROOT, "%s,%s,%s,%s,%s,%d,%d,%s,%s%n", runStart, commit, version, workloadName,
@@ -215,8 +232,8 @@ public final class QueryBench {
     }
 
     /** Starts queries at a fixed rate, each on the next free thread. */
-    private static List<Result> openLoop(Client client, Workload workload, Random random, double rate,
-            int threads, int duration) throws InterruptedException {
+    private static List<Result> openLoop(BigQuery client, Workload workload, Random random, double rate,
+            int threads, int duration, int timeout) throws InterruptedException {
         List<Result> done = Collections.synchronizedList(new ArrayList<>());
         ExecutorService pool = Executors.newFixedThreadPool(threads);
         long interval = (long) (1e9 / rate);
@@ -229,7 +246,7 @@ public final class QueryBench {
             }
             Query query = workload.next(random);
             long dueAt = due;
-            pool.execute(() -> done.add(run(client, query, start, dueAt)));
+            pool.execute(() -> done.add(run(client, query, start, dueAt, timeout)));
         }
         pool.shutdown();
         if (!pool.awaitTermination(10, TimeUnit.MINUTES)) {
@@ -239,8 +256,8 @@ public final class QueryBench {
     }
 
     /** Each thread issues queries back to back until the time is up. */
-    private static List<Result> closedLoop(Client client, Workload workload, long seed, int threads,
-            int duration) throws InterruptedException {
+    private static List<Result> closedLoop(BigQuery client, Workload workload, long seed, int threads,
+            int duration, int timeout) throws InterruptedException {
         List<Result> done = Collections.synchronizedList(new ArrayList<>());
         long start = System.nanoTime();
         long end = start + duration * 1_000_000_000L;
@@ -249,7 +266,7 @@ public final class QueryBench {
             Random random = new Random(seed + t);
             workers.add(Thread.ofPlatform().start(() -> {
                 while (System.nanoTime() < end) {
-                    done.add(run(client, workload.next(random), start, System.nanoTime()));
+                    done.add(run(client, workload.next(random), start, System.nanoTime(), timeout));
                 }
             }));
         }
@@ -260,17 +277,22 @@ public final class QueryBench {
     }
 
     /** Runs one query, reading every row, and never throws. */
-    private static Result run(Client client, Query query, long start, long due) {
+    private static Result run(BigQuery client, Query query, long start, long due, int timeout) {
         long sent = System.nanoTime();
         long rows = 0;
         String error = null;
-        try (QueryResponse response = client.query(query.sql(), query.params()).get()) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            while (reader.next() != null) {
+        try {
+            TableResult result = client.query(QueryJobConfiguration.newBuilder(query.sql())
+                    .setNamedParameters(query.params())
+                    .setUseQueryCache(false)
+                    .setJobCreationMode(QueryJobConfiguration.JobCreationMode.JOB_CREATION_OPTIONAL)
+                    .setJobTimeoutMs(timeout * 1000L)
+                    .build());
+            for (FieldValueList ignored : result.iterateAll()) {
                 rows++;
             }
         } catch (Exception e) {
-            error = String.valueOf(e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+            error = String.valueOf(e.getMessage());
         }
         return new Result(due - start, sent - start, System.nanoTime() - start, query, rows, error);
     }

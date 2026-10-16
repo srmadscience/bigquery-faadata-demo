@@ -24,11 +24,12 @@
 #   --rate Q       start Q queries a second (open loop); without it, each
 #                  thread runs queries back to back, for the most the server can do
 #   --threads N    queries in flight at once, at most (default 8)
+#   --timeout S    a query still running after S seconds is an error (default 60)
 #   --duration S   seconds to run for (default 60)
 #   --seed N       repeat an earlier run's queries
 #   --log FILE     one line per query: latency, rows, aircraft and dates
 # --time COMMENT appends a summary to testresults_query.csv, with the date, git
-# commit, ClickHouse version and COMMENT, which says what changed since the
+# commit, BigQuery location and COMMENT, which says what changed since the
 # last test.
 #
 # Workloads:

@@ -21,10 +21,16 @@
         "label": "Airline",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
-        "query": "SELECT DISTINCT Reporting_Airline FROM faa.ontime ORDER BY 1",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT Reporting_Airline FROM faa.ontime ORDER BY 1"
+        },
         "definition": "SELECT DISTINCT Reporting_Airline FROM faa.ontime ORDER BY 1",
         "refresh": 1,
         "multi": true,
@@ -87,10 +93,16 @@
         "label": "Aircraft",
         "type": "query",
         "datasource": {
-          "type": "grafana-clickhouse-datasource",
-          "uid": "clickhouse-faa"
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
         },
-        "query": "SELECT DISTINCT tail FROM faa.tail_day WHERE Reporting_Airline IN (${airline:singlequote}) AND match(tail, '^N[1-9][0-9A-Z]{0,4}$') ORDER BY 1",
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT tail FROM faa.tail_day WHERE Reporting_Airline IN (${airline:singlequote}) AND REGEXP_CONTAINS(tail, r'^N[1-9][0-9A-Z]{0,4}$') ORDER BY 1"
+        },
         "definition": "tail numbers for the selected airlines",
         "refresh": 2,
         "multi": false,
@@ -128,8 +140,8 @@
       "title": "Aircraft",
       "description": "Distinct tail numbers that flew in range.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -141,13 +153,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT uniqExact(tail) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT tail) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
         }
       ],
       "fieldConfig": {
@@ -189,8 +201,8 @@
       "title": "Flights / aircraft-day",
       "description": "Average flights per aircraft on the days it flew (utilisation).",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 4,
@@ -202,13 +214,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT sum(flights) / count() FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
+          "rawQuery": true,
+          "rawSql": "SELECT SAFE_DIVIDE(SUM(flights), COUNT(*)) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
         }
       ],
       "fieldConfig": {
@@ -250,8 +262,8 @@
       "title": "Carrier cxl",
       "description": "Cancellations the airline was responsible for (BTS code A: maintenance, crew, aircraft cleaning, baggage, fuelling...). Weather, air-traffic and security cancellations are excluded.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 8,
@@ -263,13 +275,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT sum(cxl_carrier) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(cxl_carrier) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
         }
       ],
       "fieldConfig": {
@@ -311,8 +323,8 @@
       "title": "Carrier cxl / 1k flights",
       "description": "Carrier-caused cancellations per 1,000 scheduled flights.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -324,13 +336,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 1000 * sum(cxl_carrier) / sum(flights) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
+          "rawQuery": true,
+          "rawSql": "SELECT 1000 * SAFE_DIVIDE(SUM(cxl_carrier), SUM(flights)) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
         }
       ],
       "fieldConfig": {
@@ -372,8 +384,8 @@
       "title": "Carrier delay / flight",
       "description": "Minutes of delay attributed to the carrier (incl. maintenance), averaged over all completed flights.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 16,
@@ -385,13 +397,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT sum(carrier_delay) / sum(completed) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
+          "rawQuery": true,
+          "rawSql": "SELECT SAFE_DIVIDE(SUM(carrier_delay), SUM(completed)) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''"
         }
       ],
       "fieldConfig": {
@@ -433,8 +445,8 @@
       "title": "Cxl with no tail",
       "description": "Cancelled flights with no aircraft assigned. They are left out of every per-aircraft figure.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 20,
@@ -446,13 +458,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT sum(cxl_carrier + cxl_other)\nFROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail = ''"
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(cxl_carrier + cxl_other) AS value\nFROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail = ''"
         }
       ],
       "fieldConfig": {
@@ -494,8 +506,8 @@
       "title": "Airlines",
       "description": "Per operating airline (regional carriers such as OO SkyWest, MQ Envoy and YX Republic fly for the majors). Flts/day = flights per aircraft per day flown; Cxl/1k = carrier cancellations per 1,000 flights; Delay min/flt = carrier delay minutes per completed flight; Delayed 15+ % = flights with 15+ min carrier delay.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -507,13 +519,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT Reporting_Airline AS Airline,\n       uniqExact(tail) AS Aircraft,\n       round(sum(flights) / count(), 1) AS `Flts/day`,\n       round(1000 * sum(cxl_carrier) / sum(flights), 2) AS `Cxl/1k`,\n       round(sum(carrier_delay) / sum(completed), 1) AS `Delay min/flt`,\n       round(100 * sum(delayed15) / sum(completed), 1) AS `Delayed 15+ %`\nFROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\nGROUP BY Airline ORDER BY `Cxl/1k`"
+          "rawQuery": true,
+          "rawSql": "SELECT Reporting_Airline AS Airline,\n       COUNT(DISTINCT tail) AS Aircraft,\n       ROUND(SAFE_DIVIDE(SUM(flights), COUNT(*)), 1) AS `Flts_day`,\n       ROUND(1000 * SAFE_DIVIDE(SUM(cxl_carrier), SUM(flights)), 2) AS `Cxl_1k`,\n       ROUND(SAFE_DIVIDE(SUM(carrier_delay), SUM(completed)), 1) AS `Delay_min_flt`,\n       ROUND(100 * SAFE_DIVIDE(SUM(delayed15), SUM(completed)), 1) AS `Delayed 15+ %`\nFROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\nGROUP BY Airline ORDER BY `Cxl_1k`"
         }
       ],
       "fieldConfig": {
@@ -583,15 +595,27 @@
         "showHeader": true,
         "cellHeight": "sm"
       },
-      "id": 8
+      "id": 8,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Delay_min_flt": "Delay min/flt",
+              "Flts_day": "Flts/day",
+              "Cxl_1k": "Cxl/1k"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "barchart",
       "title": "Aircraft by carrier-cancellation rate",
       "description": "How many aircraft fall into each band of carrier cancellations per 1,000 flights (aircraft that flew at least the minimum number of flights).",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -603,13 +627,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT bucket, count() AS Aircraft FROM (\n    SELECT tail,\n           1000 * sum(cxl_carrier) / sum(flights) AS rate,\n           multiIf(rate = 0, '0', rate < 1, '<1', rate < 2, '1-2', rate < 3, '2-3', rate < 5, '3-5',\n                   rate < 10, '5-10', '10+') AS bucket,\n           indexOf(['0','<1','1-2','2-3','3-5','5-10','10+'], bucket) AS ord\n    FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n    GROUP BY tail HAVING sum(completed) >= ${min_flights}\n)\nGROUP BY bucket, ord ORDER BY ord"
+          "rawQuery": true,
+          "rawSql": "SELECT bucket, COUNT(*) AS Aircraft FROM (\n    SELECT CASE WHEN rate = 0 THEN '0' WHEN rate < 1 THEN '<1' WHEN rate < 2 THEN '1-2' WHEN rate < 3 THEN '2-3'\n                WHEN rate < 5 THEN '3-5' WHEN rate < 10 THEN '5-10' ELSE '10+' END AS bucket,\n           CASE WHEN rate = 0 THEN 1 WHEN rate < 1 THEN 2 WHEN rate < 2 THEN 3 WHEN rate < 3 THEN 4\n                WHEN rate < 5 THEN 5 WHEN rate < 10 THEN 6 ELSE 7 END AS ord\n    FROM (\n        SELECT tail, 1000 * SAFE_DIVIDE(SUM(cxl_carrier), SUM(flights)) AS rate\n        FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n        GROUP BY tail HAVING SUM(completed) >= ${min_flights}\n    )\n)\nGROUP BY bucket, ord ORDER BY ord"
         }
       ],
       "fieldConfig": {
@@ -635,8 +659,8 @@
       "title": "Reliability by aircraft model",
       "description": "Carrier cancellations and delay by FAA make/model (10+ aircraft and 5,000+ flights, so widebodies that fly few domestic legs are left out). Model names are the FAA's exact type designations, so variants (737-8H4, 737-890...) appear separately.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -648,13 +672,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT if(a.make_model = '', '(not in registry)', a.make_model) AS Model,\n       count() AS Aircraft,\n       sum(t.flights) AS Flights,\n       round(avg(a.year_mfr), 0) AS `Avg built`,\n       round(1000 * sum(t.cxl) / Flights, 2) AS `Cxl/1k`,\n       round(sum(t.delay) / sum(t.done), 1) AS `Delay min/flt`\nFROM (\n    SELECT tail, sum(flights) AS flights, sum(cxl_carrier) AS cxl,\n           sum(carrier_delay) AS delay, sum(completed) AS done\n    FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n    GROUP BY tail\n) AS t\nLEFT JOIN faa.aircraft_info AS a ON a.tail = t.tail\nGROUP BY Model HAVING Aircraft >= 10 AND Flights >= 5000\nORDER BY `Cxl/1k` DESC"
+          "rawQuery": true,
+          "rawSql": "SELECT IF(IFNULL(a.make_model, '') = '', '(not in registry)', a.make_model) AS Model,\n       COUNT(*) AS Aircraft,\n       SUM(t.flights) AS Flights,\n       ROUND(AVG(a.year_mfr), 0) AS `Avg built`,\n       ROUND(1000 * SAFE_DIVIDE(SUM(t.cxl), SUM(t.flights)), 2) AS `Cxl_1k`,\n       ROUND(SAFE_DIVIDE(SUM(t.delay), SUM(t.done)), 1) AS `Delay_min_flt`\nFROM (\n    SELECT tail, SUM(flights) AS flights, SUM(cxl_carrier) AS cxl,\n           SUM(carrier_delay) AS delay, SUM(completed) AS done\n    FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n    GROUP BY tail\n) AS t\nLEFT JOIN faa.aircraft_info AS a ON a.tail = t.tail\nGROUP BY Model HAVING Aircraft >= 10 AND Flights >= 5000\nORDER BY `Cxl_1k` DESC"
         }
       ],
       "fieldConfig": {
@@ -752,15 +776,26 @@
         "showHeader": true,
         "cellHeight": "sm"
       },
-      "id": 10
+      "id": 10,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Delay_min_flt": "Delay min/flt",
+              "Cxl_1k": "Cxl/1k"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "barchart",
       "title": "Reliability by aircraft age",
       "description": "Aircraft age in years at the time of each flight (from the FAA registry's year of manufacture).",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 14,
@@ -772,13 +807,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT multiIf(t.year - a.year_mfr < 5, '0-4', t.year - a.year_mfr < 10, '5-9',\n               t.year - a.year_mfr < 15, '10-14', t.year - a.year_mfr < 20, '15-19',\n               t.year - a.year_mfr < 25, '20-24', '25+') AS bucket,\n       round(1000 * sum(t.cxl) / sum(t.flights), 2) AS `Carrier cxl / 1k flights`,\n       round(sum(t.delay) / sum(t.done), 1) AS `Carrier delay min / flight`,\n       uniqExact(t.tail) AS aircraft\nFROM (\n    SELECT tail, toYear(FlightDate) AS year, sum(cxl_carrier) AS cxl, sum(flights) AS flights,\n           sum(carrier_delay) AS delay, sum(completed) AS done\n    FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n    GROUP BY tail, year\n) AS t\nINNER JOIN faa.aircraft_info AS a ON a.tail = t.tail\nWHERE a.year_mfr IS NOT NULL\nGROUP BY bucket ORDER BY min(t.year - a.year_mfr)"
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN age < 5 THEN '0-4' WHEN age < 10 THEN '5-9' WHEN age < 15 THEN '10-14'\n            WHEN age < 20 THEN '15-19' WHEN age < 25 THEN '20-24' ELSE '25+' END AS bucket,\n       ROUND(1000 * SAFE_DIVIDE(SUM(cxl), SUM(flights)), 2) AS `Carrier_cxl_1k_flights`,\n       ROUND(SAFE_DIVIDE(SUM(delay), SUM(done)), 1) AS `Carrier_delay_min_flight`,\n       COUNT(DISTINCT tail) AS aircraft\nFROM (\n    SELECT t.*, t.year - a.year_mfr AS age\n    FROM (\n        SELECT tail, EXTRACT(YEAR FROM FlightDate) AS year, SUM(cxl_carrier) AS cxl, SUM(flights) AS flights,\n               SUM(carrier_delay) AS delay, SUM(completed) AS done\n        FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n        GROUP BY tail, year\n    ) AS t\n    INNER JOIN faa.aircraft_info AS a ON a.tail = t.tail\n    WHERE a.year_mfr IS NOT NULL\n)\nGROUP BY bucket ORDER BY MIN(age)"
         }
       ],
       "fieldConfig": {
@@ -834,15 +869,26 @@
           "mode": "multi"
         }
       },
-      "id": 11
+      "id": 11,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Carrier_delay_min_flight": "Carrier delay min / flight",
+              "Carrier_cxl_1k_flights": "Carrier cxl / 1k flights"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "timeseries",
       "title": "Carrier cancellations by day",
       "description": "Carrier-caused (code A) cancellations per day, including flights with no tail number. Weather and air-traffic cancellations are left out: they are not the fleet's fault and their storm spikes are 100x larger (see the Flight Delays dashboard).",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -854,13 +900,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT time, cxl AS `Carrier cancellations`,\n       avg(cxl) OVER (ORDER BY time ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS `7-day average`\nFROM (\n    SELECT toDateTime(FlightDate) AS time, sum(cxl_carrier) AS cxl\n    FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote})\n    GROUP BY time\n)\nORDER BY time"
+          "rawQuery": true,
+          "rawSql": "SELECT time, cxl AS `Carrier cancellations`,\n       AVG(cxl) OVER (ORDER BY time ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS `7-day average`\nFROM (\n    SELECT TIMESTAMP(FlightDate) AS time, SUM(cxl_carrier) AS cxl\n    FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote})\n    GROUP BY time\n)\nORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -932,8 +978,8 @@
       "title": "Top 10 least reliable aircraft",
       "description": "The ten aircraft with the most carrier cancellations per 1,000 flights, among those that flew at least the minimum number of flights; ties go to the one with more carrier delay per flight. The table below has the details. Click a bar to inspect that aircraft.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1011,24 +1057,35 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
+          "editorMode": "code",
           "format": 1,
-          "queryType": "table",
-          "rawSql": "SELECT concat(tail, ' (', any(Reporting_Airline), ')') AS Aircraft, tail AS Tail,\n       round(1000 * sum(cxl_carrier) / sum(flights), 1) AS `Carrier cxl / 1k flights`,\n       round(sum(carrier_delay) / sum(completed), 1) AS delay,\n       -- as text, so they appear in the tooltip without being drawn as bars\n       toString(sum(flights)) AS Flights, toString(delay) AS `Carrier delay min/flt`\nFROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\nGROUP BY tail HAVING sum(completed) >= ${min_flights}\nORDER BY `Carrier cxl / 1k flights` DESC, delay DESC\nLIMIT 10"
+          "rawQuery": true,
+          "rawSql": "SELECT CONCAT(tail, ' (', ANY_VALUE(Reporting_Airline), ')') AS Aircraft, tail AS Tail,\n       ROUND(1000 * SAFE_DIVIDE(SUM(cxl_carrier), SUM(flights)), 1) AS `Carrier_cxl_1k_flights`,\n       ROUND(SAFE_DIVIDE(SUM(carrier_delay), SUM(completed)), 1) AS delay,\n       -- as text, so they appear in the tooltip without being drawn as bars\n       CAST(SUM(flights) AS STRING) AS Flights,\n       CAST(ROUND(SAFE_DIVIDE(SUM(carrier_delay), SUM(completed)), 1) AS STRING) AS `Carrier_delay_min_flt`\nFROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\nGROUP BY tail HAVING SUM(completed) >= ${min_flights}\nORDER BY `Carrier_cxl_1k_flights` DESC, delay DESC\nLIMIT 10"
         }
       ],
-      "id": 24
+      "id": 24,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Carrier_cxl_1k_flights": "Carrier cxl / 1k flights",
+              "Carrier_delay_min_flt": "Carrier delay min/flt"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "table",
       "title": "Least reliable aircraft",
       "description": "Aircraft that flew at least the minimum number of flights, worst carrier-cancellation rate first. Cxl = carrier cancellations; Cxl/1k = per 1,000 flights; Delay min/flt = carrier delay minutes per completed flight; Longest gap = longest run of days without a flight (often heavy maintenance or storage). Click a tail to inspect it below.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1040,13 +1097,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT t.Tail, t.Airline, a.make_model AS Model, a.year_mfr AS Built, t.* EXCEPT (Tail, Airline)\nFROM (\n    SELECT tail AS Tail, any(Reporting_Airline) AS Airline,\n           sum(flights) AS Flights,\n           sum(cxl_carrier) AS `Cxl`,\n           round(1000 * Cxl / Flights, 1) AS `Cxl/1k`,\n           round(sum(carrier_delay) / sum(completed), 1) AS `Delay min/flt`,\n           sum(diverted) AS Diverted,\n           uniqExact(FlightDate) AS `Days flown`,\n           arrayMax(arrayDifference(arraySort(groupUniqArray(toRelativeDayNum(FlightDate))))) - 1\n               AS `Longest gap`,\n           toString(max(FlightDate)) AS `Last flown`\n    FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n    GROUP BY tail HAVING sum(completed) >= ${min_flights}\n    ORDER BY `Cxl/1k` DESC, `Delay min/flt` DESC\n    LIMIT 100\n) AS t\nLEFT JOIN faa.aircraft_info AS a ON a.tail = t.Tail\nORDER BY `Cxl/1k` DESC, `Delay min/flt` DESC"
+          "rawQuery": true,
+          "rawSql": "SELECT t.Tail, t.Airline, a.make_model AS Model, a.year_mfr AS Built, t.* EXCEPT (Tail, Airline, days, last_flown),\n       (SELECT IFNULL(MAX(DATE_DIFF(d, p, DAY)), 0) - 1 FROM (SELECT d, LAG(d) OVER (ORDER BY d) AS p FROM UNNEST(t.days) AS d)) AS `Longest gap`,\n       CAST(t.last_flown AS STRING) AS `Last flown`\nFROM (\n    SELECT tail AS Tail, ANY_VALUE(Reporting_Airline) AS Airline,\n           SUM(flights) AS Flights,\n           SUM(cxl_carrier) AS Cxl,\n           ROUND(1000 * SAFE_DIVIDE(SUM(cxl_carrier), SUM(flights)), 1) AS `Cxl_1k`,\n           ROUND(SAFE_DIVIDE(SUM(carrier_delay), SUM(completed)), 1) AS `Delay_min_flt`,\n           SUM(diverted) AS Diverted,\n           COUNT(DISTINCT FlightDate) AS `Days flown`,\n           ARRAY_AGG(DISTINCT FlightDate) AS days,\n           MAX(FlightDate) AS last_flown\n    FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND Reporting_Airline IN (${airline:singlequote}) AND tail != ''\n    GROUP BY tail HAVING SUM(completed) >= ${min_flights}\n    ORDER BY `Cxl_1k` DESC, `Delay_min_flt` DESC\n    LIMIT 100\n) AS t\nLEFT JOIN faa.aircraft_info AS a ON a.tail = t.Tail\nORDER BY `Cxl_1k` DESC, `Delay_min_flt` DESC"
         }
       ],
       "fieldConfig": {
@@ -1189,7 +1246,18 @@
         "showHeader": true,
         "cellHeight": "sm"
       },
-      "id": 13
+      "id": 13,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Delay_min_flt": "Delay min/flt",
+              "Cxl_1k": "Cxl/1k"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "row",
@@ -1209,8 +1277,8 @@
       "title": "Registration",
       "description": "From the FAA aircraft registry. Owner is often a lessor rather than the operating airline.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1222,13 +1290,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT make_model AS Model, year_mfr AS Built, seats AS Seats,\n       if(registrant = '', '(not published)', registrant) AS Owner,\n       if(registered = 1, 'Registered', concat('Deregistered ', toString(cancel_date))) AS Status\nFROM faa.aircraft_info WHERE tail = '${tail}'"
+          "rawQuery": true,
+          "rawSql": "SELECT make_model AS Model, year_mfr AS Built, seats AS Seats,\n       IF(registrant = '', '(not published)', registrant) AS Owner,\n       IF(registered = 1, 'Registered', CONCAT('Deregistered ', CAST(cancel_date AS STRING))) AS Status\nFROM faa.aircraft_info WHERE tail = '${tail}'"
         }
       ],
       "fieldConfig": {
@@ -1263,8 +1331,8 @@
       "title": "Flights",
       "description": "",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1276,13 +1344,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT sum(flights) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND tail = '${tail}'"
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(flights) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'"
         }
       ],
       "fieldConfig": {
@@ -1324,8 +1392,8 @@
       "title": "Carrier cxl",
       "description": "",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 4,
@@ -1337,13 +1405,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT sum(cxl_carrier) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND tail = '${tail}'"
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(cxl_carrier) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'"
         }
       ],
       "fieldConfig": {
@@ -1393,8 +1461,8 @@
       "title": "Carrier cxl / 1k",
       "description": "Compare with the fleet figure at the top.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 8,
@@ -1406,13 +1474,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT 1000 * sum(cxl_carrier) / sum(flights) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND tail = '${tail}'"
+          "rawQuery": true,
+          "rawSql": "SELECT 1000 * SAFE_DIVIDE(SUM(cxl_carrier), SUM(flights)) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'"
         }
       ],
       "fieldConfig": {
@@ -1454,8 +1522,8 @@
       "title": "Carrier delay / flight",
       "description": "",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 12,
@@ -1467,13 +1535,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT sum(carrier_delay) / sum(completed) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND tail = '${tail}'"
+          "rawQuery": true,
+          "rawSql": "SELECT SAFE_DIVIDE(SUM(carrier_delay), SUM(completed)) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'"
         }
       ],
       "fieldConfig": {
@@ -1515,8 +1583,8 @@
       "title": "Days flown",
       "description": "",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 16,
@@ -1528,13 +1596,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT uniqExact(FlightDate) FROM faa.tail_day WHERE $__dateFilter(FlightDate) AND tail = '${tail}'"
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT FlightDate) AS value FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'"
         }
       ],
       "fieldConfig": {
@@ -1576,8 +1644,8 @@
       "title": "Longest gap",
       "description": "Longest run of days without a flight.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 20,
@@ -1589,13 +1657,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT arrayMax(arrayDifference(arraySort(groupUniqArray(toRelativeDayNum(FlightDate))))) - 1\nFROM faa.tail_day WHERE $__dateFilter(FlightDate) AND tail = '${tail}'"
+          "rawQuery": true,
+          "rawSql": "SELECT (SELECT IFNULL(MAX(DATE_DIFF(d, p, DAY)), 0) - 1 FROM (SELECT d, LAG(d) OVER (ORDER BY d) AS p FROM UNNEST(days) AS d)) AS value\nFROM (SELECT ARRAY_AGG(DISTINCT FlightDate) AS days FROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}')"
         }
       ],
       "fieldConfig": {
@@ -1637,8 +1705,8 @@
       "title": "Daily activity",
       "description": "Flights per day. Gaps are days the aircraft did not fly.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1650,13 +1718,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toDateTime(FlightDate) AS time,\n       sum(completed) AS Flown,\n       sum(cxl_carrier) AS `Carrier cancellations`,\n       sum(cxl_other) AS `Other cancellations`\nFROM faa.tail_day WHERE $__dateFilter(FlightDate) AND tail = '${tail}'\nGROUP BY time ORDER BY time"
+          "rawQuery": true,
+          "rawSql": "SELECT TIMESTAMP(FlightDate) AS time,\n       SUM(completed) AS Flown,\n       SUM(cxl_carrier) AS `Carrier cancellations`,\n       SUM(cxl_other) AS `Other cancellations`\nFROM faa.tail_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'\nGROUP BY time ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -1735,8 +1803,8 @@
       "title": "Disrupted flights",
       "description": "Cancellations, diversions and flights with 15+ minutes of carrier delay, newest first. Cancellation codes: A carrier, B weather, C air traffic system, D security.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1748,13 +1816,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toString(FlightDate) AS Date, Reporting_Airline AS Airline, Flight_Number_Reporting_Airline AS Flight,\n       concat(Origin, ' → ', Dest) AS Route,\n       lpad(toString(CRSDepTime), 4, '0') AS `Sched dep`,\n       multiIf(Cancelled = 1, concat('Cancelled (', CancellationCode, ')'),\n               Diverted = 1, 'Diverted', 'Delayed') AS Outcome,\n       DepDelay AS `Dep delay`, CarrierDelay AS `Carrier delay`, LateAircraftDelay AS `Late aircraft delay`\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND tail = '${tail}'\n  AND (Cancelled = 1 OR Diverted = 1 OR CarrierDelay >= 15)\nORDER BY FlightDate DESC, CRSDepTime DESC\nLIMIT 500\n-- ontime is sorted by date: reading it in order would skip the by_tail projection\nSETTINGS optimize_read_in_order = 0"
+          "rawQuery": true,
+          "rawSql": "SELECT CAST(FlightDate AS STRING) AS Date, Reporting_Airline AS Airline, Flight_Number_Reporting_Airline AS Flight,\n       CONCAT(Origin, ' → ', Dest) AS Route,\n       LPAD(CAST(CRSDepTime AS STRING), 4, '0') AS `Sched dep`,\n       CASE WHEN Cancelled = 1 THEN CONCAT('Cancelled (', CancellationCode, ')')\n            WHEN Diverted = 1 THEN 'Diverted' ELSE 'Delayed' END AS Outcome,\n       DepDelay AS `Dep delay`, CarrierDelay AS `Carrier delay`, LateAircraftDelay AS `Late aircraft delay`\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'\n  AND (Cancelled = 1 OR Diverted = 1 OR CarrierDelay >= 15)\nORDER BY FlightDate DESC, CRSDepTime DESC\nLIMIT 500"
         }
       ],
       "fieldConfig": {
@@ -1801,8 +1869,8 @@
       "title": "Flight history",
       "description": "Every flight this aircraft was scheduled for in the time range, newest first, up to 5,000. Times are local to the airport (HHMM); delays are in minutes. Cancellation codes: A carrier, B weather, C air traffic system, D security.",
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse-faa"
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
       },
       "gridPos": {
         "x": 0,
@@ -1814,13 +1882,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "grafana-clickhouse-datasource",
-            "uid": "clickhouse-faa"
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
           },
-          "editorType": "sql",
-          "queryType": "table",
+          "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT toString(FlightDate) AS Date, Reporting_Airline AS Airline, Flight_Number_Reporting_Airline AS Flight,\n       concat(Origin, ' → ', Dest) AS Route,\n       lpad(toString(CRSDepTime), 4, '0') AS `Sched dep`, lpad(toString(DepTime), 4, '0') AS Dep,\n       DepDelay AS `Dep delay`,\n       lpad(toString(CRSArrTime), 4, '0') AS `Sched arr`, lpad(toString(ArrTime), 4, '0') AS Arr,\n       ArrDelay AS `Arr delay`,\n       multiIf(Cancelled = 1, concat('Cancelled (', CancellationCode, ')'),\n               Diverted = 1, 'Diverted', ArrDelay >= 15, 'Late', 'On time') AS Outcome,\n       Distance AS Miles\nFROM faa.ontime WHERE $__dateFilter(FlightDate) AND tail = '${tail}'\nORDER BY FlightDate DESC, CRSDepTime DESC\nLIMIT 5000\n-- ontime is sorted by date: reading it in order would skip the by_tail projection\nSETTINGS optimize_read_in_order = 0"
+          "rawQuery": true,
+          "rawSql": "SELECT CAST(FlightDate AS STRING) AS Date, Reporting_Airline AS Airline, Flight_Number_Reporting_Airline AS Flight,\n       CONCAT(Origin, ' → ', Dest) AS Route,\n       LPAD(CAST(CRSDepTime AS STRING), 4, '0') AS `Sched dep`, LPAD(CAST(DepTime AS STRING), 4, '0') AS Dep,\n       DepDelay AS `Dep delay`,\n       LPAD(CAST(CRSArrTime AS STRING), 4, '0') AS `Sched arr`, LPAD(CAST(ArrTime AS STRING), 4, '0') AS Arr,\n       ArrDelay AS `Arr delay`,\n       CASE WHEN Cancelled = 1 THEN CONCAT('Cancelled (', CancellationCode, ')')\n            WHEN Diverted = 1 THEN 'Diverted' WHEN ArrDelay >= 15 THEN 'Late' ELSE 'On time' END AS Outcome,\n       Distance AS Miles\nFROM faa.ontime WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo()) AND tail = '${tail}'\nORDER BY FlightDate DESC, CRSDepTime DESC\nLIMIT 5000"
         }
       ],
       "fieldConfig": {
