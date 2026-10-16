@@ -10,8 +10,8 @@ the same data, tables and dashboards, on BigQuery instead of ClickHouse. The ten
 data from 2016 take about 5 GB of downloads.
 
 **Status.** Every script, the Java loader and all 82 dashboard queries have been run
-against BigQuery, with one month of flights (June 2025), a year of weather and the aircraft
-registry. Not yet tested: a full ten-year load, `grafana-provision.sh` and the dashboards
+against BigQuery, including a full ten-year load (2016-01 to 2026-07: 68.4 million flights,
+42.2 million weather reports). Not yet tested: `grafana-provision.sh` and the dashboards
 in a running Grafana, and the Google Cloud VM (`gcp/create-vm.sh`, `install-server.sh`).
 
 ![Flight Delays dashboard, February to July 2026](docs/screenshots/flight-delays.jpg)
@@ -125,21 +125,32 @@ weather, the station list or the registry up to date, use `--refresh`:
 ### Load times
 
 Measured in October 2026 from an Apple M2 Mac (16 GB RAM) over a home connection, to the
-`US` multi-region, with one month of flights (June 2025) and one year of weather (2025):
+`US` multi-region, starting from an empty dataset and an empty `data/raw/`, for 2016-01 to
+2026-07 (`scripts/reproduce.sh --time ... 2016-01 2026-07`):
 
 | Step | Time |
 |------|-----:|
-| `create-database.sh` (16 statements, one `bq` call each) | 30 s |
-| `load-flights.sh` (1 month, 611,575 flights) | 1 min 24 s |
-| `build-tail-day.sh` | 10 s |
-| `load-stations.sh` | 18 s |
-| `load-weather.sh` (1 year, 3.85 million reports) | 3 min 41 s |
-| `build-flight-weather.sh` | 23 s |
-| `load-registry.sh` | 1 min 21 s |
+| `create-database.sh` (16 statements, one `bq` call each) | 32 s |
+| `fetch-flights.sh` (127 monthly zips, about 3.3 GB) | 8 to 12 min * |
+| `load-flights.sh` (127 months, 68.4 million flights, 8 load jobs at a time) | 26 min 35 s |
+| `build-tail-day.sh` (16.7 million aircraft-days) | 18 s |
+| `fetch-stations.sh`, `load-stations.sh` | 19 s |
+| `fetch-weather.sh` (from the mirror) | 3 min 15 s |
+| `load-weather.sh` (11 years, 42.2 million reports) | about 39 min * |
+| `build-flight-weather.sh` (68.4 million flights) | 34 s |
+| `fetch-registry.sh`, `load-registry.sh` | 1 min 32 s |
+| **Total** | **about 1 h 24 min** |
 
-A full ten-year load has not been timed yet. The loader's time goes mostly into reading,
-converting and compressing the CSVs on the client, and the upload; the build steps run
-entirely in BigQuery. To time a load from scratch, delete the dataset (`bq rm -r -f faa`)
+\* That run took 4 h 6 min by the clock, because the Mac went into idle sleep twice:
+for 10 minutes during `fetch-flights.sh`, which also broke off four downloads (they were
+fetched again), and for 2 h 32 min during `load-weather.sh`, when it only woke for a
+minute every quarter of an hour. The starred times are the time it was awake, from
+`pmset -g log`; `testresults_load.csv` has the clock times. An earlier, interrupted run
+fetched the flights in 8 min 11 s. `reproduce.sh` now runs under `caffeinate` on macOS.
+
+The loader's time goes mostly into reading, converting and compressing the CSVs on the
+client, and the upload; the build steps run entirely in BigQuery, and are fast even over
+all ten years. To time a load from scratch, delete the dataset (`bq rm -r -f faa`)
 and move the downloaded files out of `data/raw/`, then run:
 
     scripts/reproduce.sh --time "what changed since the last test" 2016-01 2026-07
@@ -189,9 +200,20 @@ query reads only that aircraft's blocks of each monthly partition in the range; 
 what the `by_tail` projection did in the ClickHouse version, without a second copy of the
 table.
 
-With only June 2025 loaded, so every range was at most a month, 8 threads back to back
-for 20 seconds from the M2 managed 23 queries a second, with a p50 of 327 ms and a p99 of
-735 ms. Full-dataset numbers are still to be measured.
+With the full ten years loaded, 8 threads back to back for 60 seconds from the M2 ran
+879 queries (14.7 a second) with no errors:
+
+| Range | Queries | p50 ms | p90 ms | p99 ms | Rows/query |
+|-------|--------:|-------:|-------:|-------:|-----------:|
+| 1-7 days | 206 | 329 | 467 | 660 | 6 |
+| 8-31 days | 172 | 335 | 442 | 791 | 34 |
+| 1-12 months | 278 | 375 | 553 | 761 | 239 |
+| 1-10 years | 223 | 676 | 2,418 | 3,800 | 3,010 |
+| All | 879 | 375 | 862 | 3,146 | 847 |
+
+Up to a year, latency hardly depends on the range; ranges of years read up to 127 monthly
+partitions, and that shows in the tail. All 82 dashboard queries, run with `bq` over the
+whole ten years, took 1 to 6 seconds each, including `bq`'s own start-up.
 
 ## Data mirror
 

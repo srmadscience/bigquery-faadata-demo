@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import java.util.zip.Deflater;
 import java.util.zip.GZIPInputStream;
@@ -37,12 +38,14 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.CsvOptions;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Job;
 import com.google.cloud.bigquery.JobId;
 import com.google.cloud.bigquery.JobInfo;
 import com.google.cloud.bigquery.JobStatistics.LoadStatistics;
+import com.google.cloud.bigquery.JobStatus;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
@@ -235,15 +238,43 @@ public class Loader {
                 convert(file, schema, gz);
             }
         }
-        Job job = channel.getJob().waitFor();
-        if (job == null) {
-            throw new IOException("load job " + jobId.getJob() + " disappeared");
-        }
+        Job job = waitFor(bigquery, jobId);
         if (job.getStatus().getError() != null) {
             throw new IOException("load job " + jobId.getJob() + " into " + target.getTable() + " failed: "
                     + job.getStatus().getError() + ", " + job.getStatus().getExecutionErrors());
         }
         return ((LoadStatistics) job.getStatistics()).getOutputRows();
+    }
+
+    /**
+     * Waits for a load job to finish. Job.waitFor fails if the thread's
+     * interrupt flag is set, and in a full load it once was, after a successful
+     * upload, with nothing in this program having interrupted the thread; the
+     * job itself had succeeded. So this polls the job instead, without failing
+     * on an interrupt, and says if the flag was set.
+     */
+    private static Job waitFor(BigQuery bigquery, JobId jobId) throws IOException {
+        for (long pause = 250_000_000L; ; pause = Math.min(pause * 2, 5_000_000_000L)) {
+            if (Thread.interrupted()) {
+                System.err.println("warn: thread interrupted while waiting for load job " + jobId.getJob() + "; still waiting");
+            }
+            Job job;
+            try {
+                job = bigquery.getJob(jobId);
+            } catch (BigQueryException e) {
+                if (e.getCause() instanceof InterruptedException) {
+                    continue;
+                }
+                throw e;
+            }
+            if (job == null) {
+                throw new IOException("load job " + jobId.getJob() + " not found");
+            }
+            if (job.getStatus().getState() == JobStatus.State.DONE) {
+                return job;
+            }
+            LockSupport.parkNanos(pause);
+        }
     }
 
     /** Writes one file, or the CSV inside one zip, to {@code out} as {@link CsvConverter} output. */

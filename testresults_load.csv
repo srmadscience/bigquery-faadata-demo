@@ -1,0 +1,13 @@
+run_start,git_commit,server,from,to,step,seconds,comment
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,create-database,32,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,fetch-flights,1303,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,load-flights,1595,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,build-tail-day,18,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,fetch-stations,2,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,load-stations,17,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,fetch-weather,195,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,load-weather,11497,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,build-flight-weather,34,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,fetch-registry,10,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,load-registry,82,"First full load: empty dataset and data/raw, M2 at home to US"
+2026-10-16T17:19:17+0100,4b96e7f-dirty,BigQuery US,2016-01,2026-07,total,14785,"First full load: empty dataset and data/raw, M2 at home to US"

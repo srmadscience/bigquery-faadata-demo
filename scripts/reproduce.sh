@@ -24,7 +24,13 @@
 # testresults_load.csv, with the date, git commit, BigQuery location and
 # COMMENT, which says what changed since the last test. For a full-load test,
 # start from an empty dataset (bq rm -r -f faa) and an empty data/raw/.
+#
+# On macOS this runs under caffeinate, so the Mac doesn't idle-sleep: a full
+# load once took 4 hours by the clock, of which it was asleep for 2 h 42 min.
 set -euo pipefail
+if [[ "$(uname)" == Darwin && -z "${FAA_CAFFEINATED:-}" ]] && command -v caffeinate > /dev/null; then
+  FAA_CAFFEINATED=1 exec caffeinate -i -s "$0" "$@"
+fi
 cd "$(dirname "$0")"
 
 time=0
