@@ -131,22 +131,19 @@ Measured in October 2026 from an Apple M2 Mac (16 GB RAM) over a home connection
 | Step | Time |
 |------|-----:|
 | `create-database.sh` (16 statements, one `bq` call each) | 32 s |
-| `fetch-flights.sh` (127 monthly zips, about 3.3 GB) | 8 to 12 min * |
-| `load-flights.sh` (127 months, 68.4 million flights, 8 load jobs at a time) | 26 min 35 s |
-| `build-tail-day.sh` (16.7 million aircraft-days) | 18 s |
-| `fetch-stations.sh`, `load-stations.sh` | 19 s |
-| `fetch-weather.sh` (from the mirror) | 3 min 15 s |
-| `load-weather.sh` (11 years, 42.2 million reports) | about 39 min * |
-| `build-flight-weather.sh` (68.4 million flights) | 34 s |
-| `fetch-registry.sh`, `load-registry.sh` | 1 min 32 s |
-| **Total** | **about 1 h 24 min** |
+| `fetch-flights.sh` (127 monthly zips, about 3.3 GB, from the mirror) | 7 min 21 s |
+| `load-flights.sh` (127 months, 68.4 million flights, 8 load jobs at a time) | 25 min 15 s |
+| `build-tail-day.sh` (16.7 million aircraft-days) | 12 s |
+| `fetch-stations.sh`, `load-stations.sh` | 21 s |
+| `fetch-weather.sh` (11 years, about 1.6 GB, from the mirror) | 3 min 3 s |
+| `load-weather.sh` (11 years, 42.2 million reports) | 35 min 58 s |
+| `build-flight-weather.sh` (68.4 million flights) | 31 s |
+| `fetch-registry.sh`, `load-registry.sh` | 1 min 27 s |
+| **Total** | **1 h 14 min 40 s** |
 
-\* That run took 4 h 6 min by the clock, because the Mac went into idle sleep twice:
-for 10 minutes during `fetch-flights.sh`, which also broke off four downloads (they were
-fetched again), and for 2 h 32 min during `load-weather.sh`, when it only woke for a
-minute every quarter of an hour. The starred times are the time it was awake, from
-`pmset -g log`; `testresults_load.csv` has the clock times. An earlier, interrupted run
-fetched the flights in 8 min 11 s. `reproduce.sh` now runs under `caffeinate` on macOS.
+An earlier run took 4 h 6 min by the clock, because the Mac went into idle sleep for
+2 h 42 min of it; `reproduce.sh` now runs under `caffeinate` on macOS, so it can't, as
+long as the lid stays open. Both runs are in `testresults_load.csv`.
 
 The loader's time goes mostly into reading, converting and compressing the CSVs on the
 client, and the upload; the build steps run entirely in BigQuery, and are fast even over
