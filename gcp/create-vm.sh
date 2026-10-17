@@ -64,8 +64,9 @@ if [[ "${1:-}" == --delete ]]; then
   exit 0
 fi
 
-echo "=== Enabling the Compute Engine and BigQuery APIs"
-g services enable compute.googleapis.com bigquery.googleapis.com
+echo "=== Enabling the Compute Engine, BigQuery and Cloud Resource Manager APIs"
+# Grafana's BigQuery plugin calls Cloud Resource Manager to test the datasource.
+g services enable compute.googleapis.com bigquery.googleapis.com cloudresourcemanager.googleapis.com
 
 echo "=== Service account $SA"
 g iam service-accounts describe "$SA" > /dev/null 2>&1 \

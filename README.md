@@ -12,8 +12,9 @@ goes through what changed in the code, and why.
 
 **Status.** Every script, the Java loader and all 82 dashboard queries have been run
 against BigQuery, including a full ten-year load (2016-01 to 2026-07: 68.4 million flights,
-42.2 million weather reports). Not yet tested: `grafana-provision.sh` and the dashboards
-in a running Grafana, and the Google Cloud VM (`gcp/create-vm.sh`, `install-server.sh`).
+42.2 million weather reports). In October 2026 `gcp/create-vm.sh` built the whole demo
+server from scratch, ten-year load included, in 56 minutes, and all four dashboards ran
+in Grafana 13.2 with version 3.4 of the plugin, every panel showing data.
 
 ![Flight Delays dashboard, February to July 2026](docs/screenshots/flight-delays.jpg)
 
@@ -244,6 +245,8 @@ Environmental Mesonet, which asks to be credited; the other sources are public d
 Grafana queries BigQuery through the [BigQuery plugin](https://grafana.com/grafana/plugins/grafana-bigquery-datasource/)
 (3.x), so it needs internet access and a Google identity that may read the dataset and run
 query jobs (the BigQuery Data Viewer and BigQuery Job User roles). Install the plugin first.
+The plugin's "Save & test" also needs the Cloud Resource Manager API enabled in the project
+(`gcloud services enable cloudresourcemanager.googleapis.com`); queries work without it.
 
 **Automatic setup** works for a Grafana installed from the Linux packages (configuration in
 `/etc/grafana`, run by systemd as `grafana-server`) on a machine you can SSH into with a key
@@ -291,7 +294,7 @@ needs them (`Cxl/1k`, `Min temp (°F)`), the query uses a plain name and the pan
 
 ### Screenshots
 
-These were taken with the ClickHouse version of this project; the dashboards are the same.
+Taken in October 2026 on the demo server that `gcp/create-vm.sh` builds (Grafana 13.2).
 
 **Flight Delays**, February to July 2026: headline figures, delays and cancellations by
 day, delay causes by month and the airline table (top, above); further down, the airport
