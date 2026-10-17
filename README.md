@@ -7,7 +7,8 @@ A Google BigQuery / Grafana application that uses publicly available FAA flight 
 
 This is a port of [clickhouse-faadata-demo](https://github.com/srmadscience/clickhouse-faadata-demo):
 the same data, tables and dashboards, on BigQuery instead of ClickHouse. The ten years of
-data from 2016 take about 5 GB of downloads.
+data from 2016 take about 5 GB of downloads. [ClickHouse vs BigQuery](docs/clickhouse-vs-bigquery.md)
+goes through what changed in the code, and why.
 
 **Status.** Every script, the Java loader and all 82 dashboard queries have been run
 against BigQuery, including a full ten-year load (2016-01 to 2026-07: 68.4 million flights,
@@ -46,6 +47,7 @@ are never loaded, and owner names only for organisations, not individuals.
     sql/                   Table and view definitions, run in file-name order
     scripts/               Everything needed to rebuild the dataset and Grafana (below)
     gcp/                   Script that builds a complete demo server on Google Cloud (below)
+    docs/                  How the code differs from the ClickHouse version; screenshots
     grafana/provisioning/  Datasource + dashboard provider config
     grafana/dashboards/    Exported dashboard JSON (committed)
     data/                  Downloaded data: NOT in git (see data/README.md)
