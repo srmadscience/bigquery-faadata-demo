@@ -1,0 +1,523 @@
+{
+  "uid": "faa-tables",
+  "title": "Tables and Views",
+  "description": "Every table and view in the faa dataset, with row counts, sizes, partitioning and clustering, and each view's SQL. Read from INFORMATION_SCHEMA and __TABLES__.",
+  "tags": [
+    "faa",
+    "schema"
+  ],
+  "timezone": "utc",
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "hidden": true
+  },
+  "links": [
+    {
+      "title": "Columns",
+      "type": "link",
+      "url": "/d/faa-columns/columns",
+      "icon": "dashboard"
+    }
+  ],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Tables",
+      "description": "Tables in the dataset.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS tables FROM faa.INFORMATION_SCHEMA.TABLES WHERE table_type != 'VIEW'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Views",
+      "description": "Views in the dataset.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS views FROM faa.INFORMATION_SCHEMA.TABLES WHERE table_type = 'VIEW'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Rows",
+      "description": "Rows in all tables (not views).",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(row_count) AS row_count FROM faa.__TABLES__ WHERE type = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Size",
+      "description": "Logical size of all tables: what BigQuery bills storage by, by default.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(size_bytes) AS size FROM faa.__TABLES__ WHERE type = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 4
+    },
+    {
+      "type": "table",
+      "title": "Tables and views",
+      "description": "Click a name to see its columns. Size is logical (uncompressed) bytes. A view's rows are counted by running it; one added to the dataset later shows no count until it is added to this dashboard's queries.",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Table"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Columns of ${__value.raw}",
+                    "url": "/d/faa-columns/columns?var-table=${__value.raw}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Type"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rows"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Columns"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last modified"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT t.table_name AS `Table`, IF(t.table_type = 'BASE TABLE', 'table', LOWER(t.table_type)) AS Type,\n  COALESCE(IF(t.table_type = 'VIEW', NULL, s.row_count), v.row_count) AS `Rows`,\n  IF(t.table_type = 'VIEW', NULL, s.size_bytes) AS Size, c.columns AS Columns,\n  c.partitioned_by AS Partitioned_by, c.clustered_by AS Clustered_by,\n  TIMESTAMP_MILLIS(s.last_modified_time) AS Last_modified\nFROM faa.INFORMATION_SCHEMA.TABLES t\nLEFT JOIN faa.__TABLES__ s ON s.table_id = t.table_name\nLEFT JOIN (SELECT table_name, COUNT(*) AS columns,\n                  STRING_AGG(IF(is_partitioning_column = 'YES', column_name, NULL)) AS partitioned_by,\n                  STRING_AGG(IF(clustering_ordinal_position IS NOT NULL, column_name, NULL), ', '\n                             ORDER BY clustering_ordinal_position) AS clustered_by\n           FROM faa.INFORMATION_SCHEMA.COLUMNS GROUP BY table_name) c USING (table_name)\nLEFT JOIN (SELECT 'aircraft' AS table_name, COUNT(*) AS row_count FROM faa.aircraft\n           UNION ALL SELECT 'airport_aliases', COUNT(*) FROM faa.airport_aliases\n           UNION ALL SELECT 'airport_closed', COUNT(*) FROM faa.airport_closed\n           UNION ALL SELECT 'airport_station', COUNT(*) FROM faa.airport_station) v USING (table_name)\nORDER BY t.table_type, t.table_name"
+        }
+      ],
+      "id": 5,
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Partitioned_by": "Partitioned by",
+              "Clustered_by": "Clustered by",
+              "Last_modified": "Last modified"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Views",
+      "description": "Each view's SQL, as stored in BigQuery (from sql/ with the dataset name filled in). Hover over or click a definition to see it all.",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "View"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Columns of ${__value.raw}",
+                    "url": "/d/faa-columns/columns?var-table=${__value.raw}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rows"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Definition"
+            },
+            "properties": [
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT w.table_name AS `View`, v.row_count AS `Rows`, w.view_definition AS Definition\nFROM faa.INFORMATION_SCHEMA.VIEWS w\nLEFT JOIN (SELECT 'aircraft' AS table_name, COUNT(*) AS row_count FROM faa.aircraft\n           UNION ALL SELECT 'airport_aliases', COUNT(*) FROM faa.airport_aliases\n           UNION ALL SELECT 'airport_closed', COUNT(*) FROM faa.airport_closed\n           UNION ALL SELECT 'airport_station', COUNT(*) FROM faa.airport_station) v USING (table_name)\nORDER BY 1"
+        }
+      ],
+      "id": 6,
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      }
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "schemaVersion": 41,
+  "version": 1
+}

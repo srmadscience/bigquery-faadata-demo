@@ -71,9 +71,15 @@ g services enable compute.googleapis.com bigquery.googleapis.com cloudresourcema
 echo "=== Service account $SA"
 g iam service-accounts describe "$SA" > /dev/null 2>&1 \
   || g iam service-accounts create "$NAME" --display-name "FAA demo: Grafana and loader"
+# A new service account takes a few seconds to become visible to IAM; until then
+# granting it a role fails with "does not exist", so retry for up to two minutes.
 for role in roles/bigquery.jobUser roles/bigquery.dataEditor; do
-  g projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:$SA" --role "$role" \
-    --condition None > /dev/null
+  for attempt in $(seq 12); do
+    err=$(g projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:$SA" --role "$role" \
+      --condition None 2>&1 > /dev/null) && break
+    (( attempt < 12 )) || { echo "$err" >&2; exit 1; }
+    sleep 10
+  done
 done
 
 echo "=== Firewall rule $NAME-grafana: port 3000 from $ALLOWED_CIDR"
@@ -93,7 +99,14 @@ exec > >(tee -a /var/log/faa-setup.log) 2>&1
 md() { curl -fsS -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/attributes/$1"; }
 echo "=== $(date '+%H:%M:%S') Cloning $(md repo-url) ($(md repo-branch))"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -q && apt-get install -y -q git
+# A stalled mirror download can hang apt for good: time it out and retry.
+for attempt in 1 2 3; do
+  timeout -k 30 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update -q \
+    && timeout -k 30 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -q git \
+    && break
+  (( attempt < 3 )) || exit 1
+  dpkg --configure -a || true
+done
 id ubuntu > /dev/null 2>&1 || useradd -m -s /bin/bash ubuntu
 REPO=/home/ubuntu/bigquery-faadata-demo
 [[ -d "$REPO" ]] || sudo -u ubuntu git clone -q "$(md repo-url)" "$REPO"

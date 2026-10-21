@@ -44,17 +44,29 @@ export DEBIAN_FRONTEND=noninteractive
 
 step() { echo; echo "=== $(date '+%H:%M:%S') $*"; }
 
+# apt-get, but a stalled mirror download can't hang it for good: each attempt
+# gets ten minutes (normally seconds) before it is killed and tried again.
+apt_get() {
+  local attempt
+  for attempt in 1 2 3; do
+    timeout -k 30 600 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 "$@" && return
+    echo "apt-get $* failed or timed out (attempt $attempt)" >&2
+    dpkg --configure -a || true
+  done
+  return 1
+}
+
 step "Packages"
-apt-get update -q
-apt-get install -y -q curl gnupg git unzip python3 openjdk-21-jdk-headless maven
+apt_get update -q
+apt_get install -y -q curl gnupg git unzip python3 openjdk-21-jdk-headless maven
 # The bq CLI, from the Google Cloud SDK (not on every image).
 if ! command -v bq > /dev/null; then
   curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
     | gpg --dearmor --yes -o /usr/share/keyrings/cloud.google.gpg
   echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
     > /etc/apt/sources.list.d/google-cloud-sdk.list
-  apt-get update -q
-  apt-get install -y -q google-cloud-cli
+  apt_get update -q
+  apt_get install -y -q google-cloud-cli
 fi
 
 step "Grafana"
@@ -62,9 +74,9 @@ if [[ ! -f /etc/apt/sources.list.d/grafana.list ]]; then
   curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor --yes -o /usr/share/keyrings/grafana.gpg
   echo "deb [signed-by=/usr/share/keyrings/grafana.gpg] https://apt.grafana.com stable main" \
     > /etc/apt/sources.list.d/grafana.list
-  apt-get update -q
+  apt_get update -q
 fi
-apt-get install -y -q grafana
+apt_get install -y -q grafana
 # grafana cli runs as root here, so the plugin it installs must be handed to
 # the grafana user.
 grafana cli plugins install grafana-bigquery-datasource
