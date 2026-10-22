@@ -1,0 +1,1000 @@
+{
+  "uid": "faa-op-city-pair-by-day",
+  "title": "City Pairs by Day",
+  "description": "Count, filter and read faa.op_city_pair_by_day: one row per origin, destination and day, with the number of flights and their average delays, elapsed time and distance. The table is built by Matillion, not by this repository's scripts.",
+  "tags": [
+    "faa",
+    "flights",
+    "matillion"
+  ],
+  "timezone": "utc",
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "2016-01-01T00:00:00.000Z",
+    "to": "2026-07-31T23:59:59.000Z"
+  },
+  "links": [
+    {
+      "title": "Tables and Views",
+      "type": "link",
+      "url": "/d/faa-tables/tables-and-views",
+      "icon": "dashboard"
+    },
+    {
+      "title": "Columns",
+      "type": "link",
+      "url": "/d/faa-columns/columns?var-table=op_city_pair_by_day",
+      "icon": "dashboard"
+    }
+  ],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Rows",
+      "description": "Rows that match the filters: one per city pair per day.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS row_count FROM faa.op_city_pair_by_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "City pairs",
+      "description": "Distinct origin and destination pairs.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT CONCAT(Origin, '-', Dest)) AS pairs FROM faa.op_city_pair_by_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Days",
+      "description": "Distinct days.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT FlightDate) AS days FROM faa.op_city_pair_by_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Flights",
+      "description": "Flights in the matching rows.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(count_Flight_Number_Reporting_Airline) AS flights FROM faa.op_city_pair_by_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 4
+    },
+    {
+      "type": "stat",
+      "title": "Avg arrival delay",
+      "description": "Weighted by flights; negative is early.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT SAFE_DIVIDE(SUM(avg_ArrDelay * count_Flight_Number_Reporting_Airline), SUM(IF(avg_ArrDelay IS NULL, 0, count_Flight_Number_Reporting_Airline))) AS arr FROM faa.op_city_pair_by_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 5
+    },
+    {
+      "type": "stat",
+      "title": "Avg departure delay",
+      "description": "Weighted by flights; negative is early.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT SAFE_DIVIDE(SUM(avg_DepDelay * count_Flight_Number_Reporting_Airline), SUM(IF(avg_DepDelay IS NULL, 0, count_Flight_Number_Reporting_Airline))) AS dep FROM faa.op_city_pair_by_day WHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "City pairs and flights by day",
+      "description": "Matching rows (city pairs) and their flights, per day.",
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT TIMESTAMP(FlightDate) AS time, COUNT(*) AS `City pairs`, SUM(count_Flight_Number_Reporting_Airline) AS Flights\nFROM faa.op_city_pair_by_day\nWHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0\nGROUP BY time ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flights"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 7
+    },
+    {
+      "type": "table",
+      "title": "City pairs",
+      "description": "The matching rows added up per city pair, busiest first (up to 5,000). Delays and elapsed time are weighted by flights.",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 11
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Origin"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dest"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Days"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flights"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg arrival delay"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg departure delay"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg elapsed time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Min distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Max distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT Origin, ANY_VALUE(OriginCityName) AS Origin_city, Dest, ANY_VALUE(DestCityName) AS Dest_city,\n  COUNT(*) AS Days, SUM(count_Flight_Number_Reporting_Airline) AS Flights,\n  SAFE_DIVIDE(SUM(avg_ArrDelay * count_Flight_Number_Reporting_Airline), SUM(IF(avg_ArrDelay IS NULL, 0, count_Flight_Number_Reporting_Airline))) AS Avg_arr,\n  SAFE_DIVIDE(SUM(avg_DepDelay * count_Flight_Number_Reporting_Airline), SUM(IF(avg_DepDelay IS NULL, 0, count_Flight_Number_Reporting_Airline))) AS Avg_dep,\n  SAFE_DIVIDE(SUM(avg_ActualElapsedTime * count_Flight_Number_Reporting_Airline), SUM(IF(avg_ActualElapsedTime IS NULL, 0, count_Flight_Number_Reporting_Airline))) AS Avg_elapsed,\n  ANY_VALUE(avg_Distance) AS Distance\nFROM faa.op_city_pair_by_day\nWHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0\nGROUP BY Origin, Dest\nORDER BY Flights DESC, Origin, Dest\nLIMIT 5000"
+        }
+      ],
+      "id": 8,
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Origin_city": "Origin city",
+              "Dest_city": "Destination city",
+              "Dest": "Dest",
+              "Avg_arr": "Avg arrival delay",
+              "Avg_dep": "Avg departure delay",
+              "Avg_elapsed": "Avg elapsed time"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Rows",
+      "description": "The matching rows of faa.op_city_pair_by_day as stored, by date, origin and destination (up to 10,000). Click a column heading to sort, or the funnel beside it to filter.",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Date"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Origin"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dest"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flights"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg arrival delay"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg departure delay"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg elapsed time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Min distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Max distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bigquery-faa"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT FORMAT_DATE('%Y-%m-%d', FlightDate) AS Date, Origin, OriginCityName, Dest, DestCityName,\n  count_Flight_Number_Reporting_Airline AS Flights, avg_ArrDelay, avg_DepDelay, avg_ActualElapsedTime,\n  avg_Distance, min_Distance, max_Distance\nFROM faa.op_city_pair_by_day\nWHERE FlightDate BETWEEN DATE($__timeFrom()) AND DATE($__timeTo())\n  AND Origin IN (${origin:singlequote}) AND Dest IN (${dest:singlequote})\n  AND STRPOS(LOWER(CONCAT(Origin, ' ', OriginCityName, ' ', Dest, ' ', DestCityName)), LOWER(${search:singlequote})) > 0\nORDER BY FlightDate, Origin, Dest\nLIMIT 10000"
+        }
+      ],
+      "id": 9,
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bigquery-faa"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "OriginCityName": "Origin city",
+              "DestCityName": "Destination city",
+              "avg_ArrDelay": "Avg arrival delay",
+              "avg_DepDelay": "Avg departure delay",
+              "avg_ActualElapsedTime": "Avg elapsed time",
+              "avg_Distance": "Distance",
+              "min_Distance": "Min distance",
+              "max_Distance": "Max distance"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "origin",
+        "label": "Origin",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
+        },
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT Origin FROM faa.op_city_pair_by_day ORDER BY 1"
+        },
+        "definition": "SELECT DISTINCT Origin FROM faa.op_city_pair_by_day ORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "sort": 1,
+        "options": []
+      },
+      {
+        "name": "dest",
+        "label": "Destination",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bigquery-faa"
+        },
+        "query": {
+          "refId": "tempvar",
+          "editorMode": "code",
+          "format": 1,
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT Dest FROM faa.op_city_pair_by_day ORDER BY 1"
+        },
+        "definition": "SELECT DISTINCT Dest FROM faa.op_city_pair_by_day ORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "sort": 1,
+        "options": []
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "description": "Part of an airport code or city name, at either end, e.g. Chicago or ORD."
+      }
+    ]
+  },
+  "schemaVersion": 41,
+  "version": 1
+}
