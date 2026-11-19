@@ -18,6 +18,12 @@ in Grafana 13.2 with version 3.4 of the plugin, every panel showing data.
 
 ![Flight Delays dashboard, February to July 2026](docs/screenshots/flight-delays.jpg)
 
+## See Also:
+
+* [clickhouse-faadata-demo](https://github.com/srmadscience/clickhouse-faadata-demo) The original ClickHouse version
+* [databricks-faadata-demo](https://github.com/srmadscience/databricks-faadata-demo) Databricks port
+* [snowflake-faadata-demo](https://github.com/srmadscience/snowflake-faadata-demo) Snowflake port
+
 ## Data
 
 | Table | Source | Grain |
